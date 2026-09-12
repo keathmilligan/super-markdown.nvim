@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" role="img" aria-label="Sample landscape illustration">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9ec5fe"/>
+      <stop offset="1" stop-color="#e7f1ff"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fb950"/>
+      <stop offset="1" stop-color="#1a7f37"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="320" fill="url(#sky)"/>
+  <circle cx="520" cy="72" r="36" fill="#ffdf5d"/>
+  <path d="M0 210 C80 160 160 190 240 170 C320 150 380 200 460 180 C540 160 600 190 640 170 L640 320 L0 320 Z" fill="url(#hill)"/>
+  <rect x="118" y="148" width="10" height="52" fill="#6e4b2a"/>
+  <circle cx="123" cy="140" r="28" fill="#2da44e"/>
+  <circle cx="108" cy="152" r="18" fill="#3fb950"/>
+  <circle cx="140" cy="154" r="16" fill="#1a7f37"/>
+  <path d="M0 268 L640 268 L640 320 L0 320 Z" fill="#0969da" opacity="0.35"/>
+</svg>

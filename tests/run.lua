@@ -1,0 +1,593 @@
+local failed = 0
+local passed = 0
+
+local function ok(cond, msg)
+  if cond then
+    passed = passed + 1
+    print('ok  ' .. msg)
+  else
+    failed = failed + 1
+    print('FAIL  ' .. msg)
+  end
+end
+
+local function eq(a, b, msg)
+  if vim.deep_equal(a, b) then
+    ok(true, msg)
+  else
+    failed = failed + 1
+    print('FAIL  ' .. msg)
+    print('  expected ' .. vim.inspect(b))
+    print('  got      ' .. vim.inspect(a))
+  end
+end
+
+-- style
+local style = require 'super-markdown.style'
+vim.o.background = 'dark'
+eq(style.palette().accent, '#4493f8', 'dark accent token')
+eq(style.palette().alert.NOTE, '#4493f8', 'dark note alert')
+vim.o.background = 'light'
+eq(style.palette().accent, '#0969da', 'light accent token')
+eq(style.palette().alert.CAUTION, '#cf222e', 'light caution alert')
+style.apply()
+ok(vim.fn.hlexists 'SuperMarkdownH1' == 1, 'H1 highlight defined')
+ok(vim.fn.hlexists 'SuperMarkdownAlertNoteTitle' == 1, 'alert title highlight')
+
+vim.o.background = 'dark'
+vim.api.nvim_set_hl(0, 'Normal', { fg = '#c9d1d9', bg = '#0d1117' })
+style.apply()
+local dark_code = vim.api.nvim_get_hl(0, { name = 'SuperMarkdownCodeBlock', link = false })
+ok(dark_code.bg ~= nil and dark_code.bg > 0x0d1117, 'dark code block bg is lighter than editor bg')
+vim.o.background = 'light'
+vim.api.nvim_set_hl(0, 'Normal', { fg = '#1f2328', bg = '#ffffff' })
+style.apply()
+local light_code = vim.api.nvim_get_hl(0, { name = 'SuperMarkdownCodeBlock', link = false })
+ok(light_code.bg ~= nil and light_code.bg < 0xffffff, 'light code block bg is darker than editor bg')
+
+-- cache keys
+local cache = require 'super-markdown.media.cache'
+local k1 = cache.key('mermaid', 'dark', 'flowchart LR\nA-->B')
+local k2 = cache.key('mermaid', 'dark', 'flowchart LR\nA-->B')
+local k3 = cache.key('mermaid', 'default', 'flowchart LR\nA-->B')
+eq(k1, k2, 'cache key stable')
+ok(k1 ~= k3, 'cache key changes with theme')
+ok(#k1 == 64, 'sha256 hex length')
+
+local mermaid = require 'super-markdown.media.mermaid'
+eq(mermaid.cached_error 'flowchart LR\nA-->flowchart[X]', nil, 'no mermaid error before failure')
+eq(
+  mermaid.format_error 'super-markdown mermaid.render() failed: Parse error on line 3:\ngot GRAPH',
+  'Parse error on line 3:\ngot GRAPH',
+  'strips mermaid helper prefix'
+)
+eq(
+  mermaid.format_error(
+    'MERMAID_ERROR {"message":"Parse error on line 3:\\ngot GRAPH","text":"flowchart","token":"GRAPH","line":3,"column":10}'
+  ),
+  'line 3, column 10\nunexpected "flowchart" (GRAPH)\nParse error on line 3:\ngot GRAPH',
+  'formats mermaid JSON parse error'
+)
+mermaid.remember_error('flowchart LR\nA-->flowchart[X]', 'Parse error on line 3:\ngot GRAPH')
+eq(mermaid.cached_error 'flowchart LR\nA-->flowchart[X]', 'Parse error on line 3:\ngot GRAPH', 'caches mermaid failure by source')
+eq(mermaid.cached_error 'flowchart LR\nA-->B', nil, 'mermaid failure cache is per diagram source')
+mermaid.remember_error('bad svg', 'Error reading SVG: Input file is too short')
+eq(mermaid.cached_error 'bad svg', nil, 'does not cache converter noise')
+mermaid.remember_error('empty svg', 'mermaid.render() produced no SVG')
+eq(mermaid.cached_error 'empty svg', nil, 'does not cache empty SVG as a permanent failure')
+
+-- path resolve
+local path = require 'super-markdown.media.path'
+eq(path.resolve('/tmp/doc/a.md', 'img/x.png'), '/tmp/doc/img/x.png', 'relative image path')
+eq(path.resolve('/tmp/doc/a.md', '/abs/x.png'), '/abs/x.png', 'absolute image path')
+eq(path.resolve('/tmp/doc/a.md', 'https://example.com/a.png'), 'https://example.com/a.png', 'url passthrough')
+
+-- plan diff
+local apply = require 'super-markdown.apply'
+local added, removed = apply.diff_keys({ 'a', 'b' }, { 'b', 'c' })
+eq(added, { 'c' }, 'diff added')
+eq(removed, { 'a' }, 'diff removed')
+
+-- emoji
+local emoji = require 'super-markdown.emoji'
+eq(emoji.get 'rocket', '🚀', 'emoji rocket')
+eq(emoji.get 'file_folder', '📁', 'emoji folder')
+eq(emoji.get 'not_a_real_emoji', nil, 'unknown shortcode')
+
+-- buffer GFM constructs
+local has_parser = #vim.api.nvim_get_runtime_file('parser/markdown.so', false) > 0
+if not has_parser then
+  print 'skip buffer tests (no markdown parser)'
+else
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(buf)
+  vim.bo[buf].filetype = 'markdown'
+  local fixture = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/fixtures/gfm.md'
+  local lines = vim.fn.readfile(fixture)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.cmd 'file tests/fixtures/gfm.md'
+  pcall(vim.treesitter.start, buf, 'markdown')
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+  local parse = require 'super-markdown.parse'
+  local plan = parse.parse(buf, win, 200)
+  ok(plan ~= nil, 'parse gfm fixture')
+  if plan then
+    local kinds = {}
+    for _, m in ipairs(plan.marks) do
+      local kind = m.key:match('^(%a+)')
+      kinds[kind] = (kinds[kind] or 0) + 1
+    end
+    ok((kinds.h or 0) > 0, 'parsed headings')
+    ok((kinds.li or 0) > 0 or (kinds.task or 0) > 0, 'parsed lists or tasks')
+    local task_hides_dash = false
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^task:' and m.opts.conceal and m.col < m.opts.end_col - 3 then
+        task_hides_dash = true
+        break
+      end
+    end
+    ok(task_hides_dash, 'task checkbox conceals leading list marker')
+    ok((kinds.tov or 0) > 0, 'parsed table overlay')
+    ok((kinds.hr or 0) > 0, 'parsed thematic break')
+    ok((kinds.emo or 0) > 0, 'parsed emoji shortcodes')
+  end
+
+  local alerts = vim.fn.fnamemodify(fixture, ':h') .. '/alerts.md'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.fn.readfile(alerts))
+  plan = parse.parse(buf, win, 200)
+  if plan then
+    local n = 0
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^alert:' then
+        n = n + 1
+      end
+    end
+    eq(n, 5, 'five github alerts')
+  else
+    ok(false, 'parse alerts fixture')
+  end
+
+  local codef = vim.fn.fnamemodify(fixture, ':h') .. '/code.md'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.fn.readfile(codef))
+  plan = parse.parse(buf, win, 200)
+  if plan then
+    local n = 0
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^cfence:' then
+        n = n + 1
+      end
+    end
+    ok(n >= 4, 'fenced code blocks')
+  end
+
+  local tsmod = require 'super-markdown.ts'
+  tsmod.patch_markdown_highlights()
+  local hlq = vim.treesitter.query.get('markdown', 'highlights')
+  ok(hlq and not hlq.has_conceal_line, 'markdown highlights do not conceal fence lines')
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'intro',
+    '```lua',
+    'print(1)',
+    'print(2)',
+    '```',
+    'outro',
+  })
+  pcall(vim.treesitter.start, buf, 'markdown')
+  plan = parse.parse(buf, win, 50)
+  local apply = require 'super-markdown.apply'
+  local open_row, close_row, block
+  if plan then
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^cfence:' then
+        open_row = m.row
+        block = m.block_range
+      elseif m.key:match '^cfence_end:' then
+        close_row = m.row
+      end
+    end
+  end
+  ok(open_row == 1 and close_row == 4, 'lua fence rows')
+  ok(block and block[1] == 1 and block[2] == 4, 'fence block_range covers open through close')
+
+  local function row_hidden(row)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+    for _, em in ipairs(marks) do
+      if em[4].conceal_lines ~= nil then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function row_hl_eol(row)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+    for _, em in ipairs(marks) do
+      if em[4].line_hl_group == 'SuperMarkdownCodeBlock'
+        or (em[4].hl_eol and em[4].hl_group == 'SuperMarkdownCodeBlock')
+      then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function tick_concealed(row)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+    for _, em in ipairs(marks) do
+      if em[4].conceal ~= nil then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function lang_muted(row)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+    for _, em in ipairs(marks) do
+      if em[4].hl_group == 'SuperMarkdownCodeLabel' then
+        return true
+      end
+    end
+    return false
+  end
+
+  if plan then
+    apply.apply(buf, plan.marks, 0)
+    ok(not row_hidden(open_row) and not row_hidden(close_row), 'code fence lines stay visible when cursor is outside')
+    ok(tick_concealed(open_row) and tick_concealed(close_row), 'code fence backticks hidden when cursor is outside')
+    ok(lang_muted(open_row), 'code fence language muted when cursor is outside')
+    ok(row_hl_eol(open_row) and row_hl_eol(open_row + 1) and row_hl_eol(close_row), 'code block shade extends to end of window')
+    apply.apply(buf, plan.marks, 2)
+    ok(row_hl_eol(open_row) and row_hl_eol(open_row + 1) and row_hl_eol(close_row), 'code block shade stays when cursor is in the block')
+    ok(not tick_concealed(open_row) and not tick_concealed(close_row), 'code fence backticks visible with cursor on body')
+    ok(not lang_muted(open_row), 'code fence language uses syntax highlight in the block')
+    apply.apply(buf, plan.marks, 1)
+    ok(not tick_concealed(open_row) and not tick_concealed(close_row), 'code fence backticks visible with cursor on open fence')
+    apply.apply(buf, plan.marks, 4)
+    ok(not tick_concealed(open_row) and not tick_concealed(close_row), 'code fence backticks visible with cursor on close fence')
+    apply.apply(buf, plan.marks, 5)
+    ok(tick_concealed(open_row) and tick_concealed(close_row), 'code fence backticks hidden again after leaving the block')
+  else
+    ok(false, 'parse lua fence block')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'before',
+    '```mermaid',
+    'flowchart LR',
+    '  A-->B',
+    '```',
+    'after',
+  })
+  pcall(vim.treesitter.start, buf, 'markdown')
+  plan = parse.parse(buf, win, 50)
+  local mmd_open, mmd_close
+  if plan then
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^mmd_open:' then
+        mmd_open = m.row
+      elseif m.key:match '^mmd_close:' then
+        mmd_close = m.row
+      end
+    end
+  end
+  ok(mmd_open == 1 and mmd_close == 4, 'mermaid fence rows')
+  if plan and mmd_open then
+    apply.apply(buf, plan.marks, 0)
+    ok(row_hidden(mmd_open), 'mermaid open fence hidden when cursor is outside')
+    ok(row_hidden(mmd_close), 'mermaid close fence hidden when cursor is outside')
+    ok(row_hidden(mmd_open + 1), 'mermaid source hidden when cursor is outside')
+    apply.apply(buf, plan.marks, mmd_open)
+    ok(not row_hidden(mmd_open) and not row_hidden(mmd_close), 'mermaid fences visible with cursor on open fence')
+    local media = require 'super-markdown.media'
+    local host, above = media.block_host(buf, { row = mmd_open, end_row = mmd_close + 1 })
+    eq({ host, above }, { 0, false }, 'mermaid diagram hosts on the line before the block')
+    local hosted = vim.list_extend(vim.deepcopy(plan.marks), {
+      {
+        key = 'media:mermaid:1',
+        row = host,
+        col = 0,
+        opts = { virt_lines = { { { 'diagram', 'Normal' } } } },
+      },
+    })
+    vim.wo[win].conceallevel = 2
+    apply.apply(buf, hosted, mmd_open)
+    vim.api.nvim_win_set_cursor(win, { mmd_open + 1, 0 })
+    apply.step_up(buf, win)
+    eq(vim.api.nvim_win_get_cursor(win)[1], mmd_open, 'k from mermaid open fence moves to the line above')
+  else
+    ok(false, 'parse mermaid fence block')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| Command                | Purpose                                                             |',
+    '| ---------------------- | ------------------------------------------------------------------- |',
+    '| `npm run dev`          | Run the Vite client and assistant gateway together.                 |',
+    '| `npm run dev:client`   | Run only the browser application on port 5173.                      |',
+    '| `npm run dev:server`   | Run only the assistant gateway on port 8787.                        |',
+  })
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local overlays = 0
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' then
+        overlays = overlays + 1
+      end
+    end
+    ok(overlays >= 5, 'formatted table overlay rows')
+  else
+    ok(false, 'parse formatted table')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| Drawer       | Kinds                                    |',
+    '  | ------------ | ---------------------------------------- |',
+    '  | Flowchart    | `terminator`, `step`, `decision`, `data` |',
+    '  | Workflow     | `event`, `timer`                         |',
+  })
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local concealed, indented = 0, 0
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' then
+        if m.opts.conceal == '' then
+          concealed = concealed + 1
+        end
+        if m.col > 0 then
+          indented = indented + 1
+        end
+      end
+    end
+    ok(concealed >= 4, 'indented table conceals source pipes')
+    ok(indented >= 3, 'indented table overlay starts at first pipe')
+  else
+    ok(false, 'parse indented table')
+  end
+
+  local mer = vim.fn.fnamemodify(fixture, ':h') .. '/mermaid.md'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.fn.readfile(mer))
+  plan = parse.parse(buf, win, 400)
+  if plan then
+    local n = 0
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'mermaid' then
+        n = n + 1
+      end
+    end
+    ok(n >= 5, 'mermaid media jobs')
+  end
+
+  local mathf = vim.fn.fnamemodify(fixture, ':h') .. '/math.md'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.fn.readfile(mathf))
+  plan = parse.parse(buf, win, 200)
+  if plan then
+    local n = 0
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'math' then
+        n = n + 1
+      end
+    end
+    ok(n >= 3, 'math media jobs')
+    local coded = 0
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'math' and job.content:find('E = mc', 1, true) then
+        coded = coded + 1
+      end
+    end
+    eq(coded, 1, 'math inside backticks is not rendered')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'Keep `$E = mc^2$` as code, render $a^2$ though.',
+  })
+  plan = parse.parse(buf, win, 20)
+  if plan then
+    local contents = {}
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'math' then
+        contents[#contents + 1] = job.content
+      end
+    end
+    eq(contents, { 'a^2' }, 'only math outside backticks is rendered')
+  else
+    ok(false, 'parse math in backticks')
+  end
+
+  local media = require 'super-markdown.media'
+  local util = require 'super-markdown.util'
+  local win_cols = util.content_width(buf, win)
+  eq(require('super-markdown.config').get().media.max_width, 0.5, 'default max width fraction')
+  eq(
+    media.job_max_cols({ kind = 'mermaid' }, buf, win),
+    math.max(1, math.floor(win_cols * 0.5)),
+    'mermaid uses 50% of window width'
+  )
+  eq(
+    media.job_max_cols({ kind = 'image', standalone = true }, buf, win),
+    math.max(1, math.floor(win_cols * 0.5)),
+    'standalone images use max width'
+  )
+  ok(
+    media.job_max_cols({ kind = 'image' }, buf, win) == win_cols,
+    'inline images use full window cap'
+  )
+  local protocol = require 'super-markdown.media.protocol'
+  local mcols, mrows = protocol.fit_to_width(100, 50, 40, 100)
+  eq(mcols, 40, 'mermaid fit_to_width uses target columns')
+  ok(mrows >= 1, 'mermaid fit_to_width keeps aspect ratio')
+  local c2, r2 = protocol.fit_to_width(100, 50, 40, 1)
+  eq(r2, 1, 'mermaid fit_to_width respects max rows')
+  ok(c2 <= 40, 'mermaid fit_to_width shrinks cols when height capped')
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'PNG passthrough:',
+    '',
+    '![Blue gradient](images/gradient.png)',
+    '',
+    'See ![inline](x.png) here',
+  })
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local src_marks, standalone, inline_img = 0, 0, 0
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^img_src:' then
+        src_marks = src_marks + 1
+        eq(m.row, 2, 'standalone image source mark row')
+        ok(m.image_source and m.opts.conceal_lines == '', 'standalone image uses conceal_lines')
+      end
+    end
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'image' then
+        if job.standalone then
+          standalone = standalone + 1
+        else
+          inline_img = inline_img + 1
+        end
+      end
+    end
+    eq(src_marks, 1, 'one standalone image source line')
+    eq(standalone, 1, 'one standalone image job')
+    eq(inline_img, 1, 'inline image is not standalone')
+    apply.apply(buf, plan.marks, 0)
+    local function img_hidden()
+      local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { 2, 0 }, { 2, -1 }, { details = true })
+      for _, em in ipairs(marks) do
+        if em[4].conceal_lines ~= nil then
+          return true
+        end
+      end
+      return false
+    end
+    ok(img_hidden(), 'image markdown line hidden when cursor is elsewhere')
+    apply.apply(buf, plan.marks, 2)
+    ok(not img_hidden(), 'image markdown line visible on cursor line')
+    ok(apply.is_media_open(plan.marks, 2), 'standalone image line is a media open row')
+    local hosted = vim.list_extend(vim.deepcopy(plan.marks), {
+      {
+        key = 'media:img:2',
+        row = 1,
+        col = 0,
+        opts = { virt_lines = { { { 'img', 'Normal' } }, { { 'img', 'Normal' } } } },
+      },
+    })
+    apply.apply(buf, hosted, 2)
+    vim.api.nvim_win_set_cursor(win, { 3, 0 })
+    apply.step_up(buf, win)
+    eq(vim.api.nvim_win_get_cursor(win)[1], 2, 'k from standalone image moves to the line above')
+  else
+    ok(false, 'parse standalone image line')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'Inline $E = mc^2$ here' })
+  apply.apply(buf, {
+    {
+      key = 'media:mathi:0:8',
+      row = 0,
+      col = 8,
+      hide_on_cursor = true,
+      opts = {
+        end_col = 17,
+        conceal = '',
+        virt_text = { { 'X', 'Normal' } },
+        virt_text_pos = 'inline',
+      },
+    },
+  }, 1)
+  local function math_opts(row)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+    return marks[1] and marks[1][4] or {}
+  end
+  local shown = math_opts(0)
+  ok(shown.virt_text ~= nil and shown.conceal == '', 'inline math rendered off cursor line')
+  apply.cursor(buf, 0)
+  local hidden = math_opts(0)
+  ok(hidden.virt_text == nil and hidden.conceal == nil, 'inline math hidden on cursor line')
+end
+
+-- images
+local img_md = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h') .. '/samples/showcase.md'
+local png = vim.fn.fnamemodify(img_md, ':h') .. '/images/gradient.png'
+local protocol = require 'super-markdown.media.protocol'
+local pw, ph = protocol.png_size(png)
+ok(pw ~= nil and pw > 0 and ph > 0, 'png_size reads sample PNG')
+eq(path.resolve(img_md, 'images/gradient.png'), vim.fn.fnamemodify(png, ':p'), 'resolve showcase image')
+
+if has_parser then
+  local parse = require 'super-markdown.parse'
+  local ibuf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(ibuf)
+  vim.bo[ibuf].filetype = 'markdown'
+  vim.api.nvim_buf_set_name(ibuf, img_md)
+  vim.api.nvim_buf_set_lines(ibuf, 0, -1, false, vim.fn.readfile(img_md))
+  pcall(vim.treesitter.start, ibuf, 'markdown')
+  local iwin = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(iwin, ibuf)
+  local iplan = parse.parse(ibuf, iwin, 400)
+  if iplan then
+    local images, mermaids, maths = 0, 0, 0
+    for _, job in ipairs(iplan.media) do
+      if job.kind == 'image' then
+        images = images + 1
+      elseif job.kind == 'mermaid' then
+        mermaids = mermaids + 1
+      elseif job.kind == 'math' then
+        maths = maths + 1
+      end
+    end
+    ok(images >= 3, 'showcase image jobs')
+    ok(mermaids >= 2, 'showcase mermaid jobs')
+    ok(maths >= 2, 'showcase math jobs')
+  else
+    ok(false, 'parse showcase')
+  end
+end
+
+-- mermaid helper (health-gated)
+if mermaid.available() and vim.fn.executable 'rsvg-convert' == 1 then
+  local dest = vim.fn.tempname() .. '.png'
+  local done = false
+  local ok_render = false
+  mermaid.render('flowchart LR\n  A-->B\n', dest, 400, function(success)
+    ok_render = success
+    done = true
+  end)
+  vim.wait(15000, function()
+    return done
+  end, 50)
+  ok(ok_render and vim.uv.fs_stat(dest) ~= nil, 'mermaid.render to png')
+
+  local seq_dest = vim.fn.tempname() .. '.png'
+  local seq_done, seq_ok, seq_err = false, false, nil
+  mermaid.render(
+    table.concat({
+      'sequenceDiagram',
+      '  participant Nvim',
+      '  participant Helper as mermaid.render',
+      '  Nvim->>Helper: diagram source',
+      '  Helper-->>Nvim: SVG',
+    }, '\n'),
+    seq_dest,
+    400,
+    function(success, err)
+      seq_ok, seq_err, seq_done = success, err, true
+    end
+  )
+  vim.wait(20000, function()
+    return seq_done
+  end, 50)
+  ok(seq_ok and vim.uv.fs_stat(seq_dest) ~= nil, 'sequence diagram renders to png')
+  if not seq_ok then
+    print('  sequence err: ' .. tostring(seq_err))
+  end
+else
+  print 'skip mermaid conversion (helper or rsvg-convert missing)'
+end
+
+print(string.format('\n%d passed, %d failed', passed, failed))
+if failed > 0 then
+  vim.cmd 'cquit 1'
+else
+  vim.cmd 'qa!'
+end

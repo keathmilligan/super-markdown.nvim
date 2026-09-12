@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 64 64"
+   role="img"
+   aria-label="gfm-hotview flame document icon"
+   version="1.1"
+   id="svg5"
+   sodipodi:docname="favicon.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs5" />
+  <sodipodi:namedview
+     id="namedview5"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="19.64431"
+     inkscape:cx="16.136988"
+     inkscape:cy="29.219657"
+     inkscape:window-width="3840"
+     inkscape:window-height="2054"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer2" />
+  <rect
+     width="64"
+     height="64"
+     rx="8.6549406"
+     fill="#050505"
+     id="rect1"
+     x="0"
+     y="0" />
+  <g
+     inkscape:groupmode="layer"
+     id="layer1"
+     inkscape:label="Layer 1">
+    <g
+       id="g7"
+       transform="matrix(1.2096088,0,0,1.2096088,-6.7074816,-4.9477016)">
+      <path
+         fill="#e13216"
+         d="M 32,57 C 20.6,57 12.4,49.2 12.4,38.8 c 0,-7.6 4.1,-13 9.2,-18.4 3.8,-4 6.2,-8.8 6.7,-14 0.1,-1 1.3,-1.4 2,-0.7 5.8,5.6 9.4,11 9.7,17.3 2.3,-2.1 3.7,-5 4.3,-8.7 0.2,-0.9 1.3,-1.2 1.9,-0.5 C 50.7,19.1 53,24.5 53,30.3 53,45.4 44.2,57 32,57 Z"
+         id="path1" />
+      <path
+         fill="#ffb21a"
+         d="M 32.2,54.7 C 24.4,54.7 19,49.5 19,42.3 c 0,-5.3 3,-8.9 6.2,-12.7 2.8,-3.4 4.3,-7 4.3,-11.2 0,-0.9 1.1,-1.3 1.7,-0.7 4.6,4.7 6.8,8.9 6.3,14.6 1.9,-1.2 3.3,-3 4.3,-5.4 0.3,-0.8 1.4,-0.9 1.9,-0.1 2.5,4 3.6,8.1 3.1,12.2 -1.1,9.3 -6.9,15.7 -14.6,15.7 z"
+         id="path2" />
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Layer 2"
+     transform="matrix(0.83952745,0,0,0.83952745,4.2575761,10.910715)">
+    <path
+       style="font-weight:bold;font-size:61.1904px;font-family:'CaskaydiaCove Nerd Font';-inkscape-font-specification:'CaskaydiaCove Nerd Font, Bold';baseline-shift:baseline;fill:#ffffff;stroke-width:1.19114628;stroke:#333333;stroke-opacity:1;stroke-dasharray:none"
+       d="m 53.815479,61.495369 0.776832,-9.262219 h -5.25855 l -0.776831,9.262219 h -7.260385 l 0.776831,-9.262219 h -4.541474 v -7.409775 h 5.168915 l 0.776831,-9.082949 h -5.945746 v -7.409775 h 6.573187 l 0.776831,-9.262219 h 7.260384 l -0.776831,9.262219 h 5.25855 l 0.776831,-9.262219 h 7.260385 l -0.776832,9.262219 h 4.541475 v 7.409775 h -5.168915 l -0.776831,9.082949 h 5.945746 v 7.409775 h -6.573187 l -0.776831,9.262219 z M 49.961201,44.823375 h 5.25855 l 0.776832,-9.082949 h -5.25855 z"
+       id="text7"
+       aria-label="#" />
+  </g>
+</svg>

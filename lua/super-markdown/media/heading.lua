@@ -14,13 +14,13 @@ function M.em(level)
   return M.EM[level] or 1
 end
 
----Integer terminal rows for a heading graphic (GFM line-height 1.25).
----Never 1: a single Kitty placeholder row is stretched or dropped next
----to quotes, code, math, and mermaid. The h1/h2 rule sits in the last cell.
+---Integer terminal rows for a heading graphic.
+---Type size in em, rounded up to whole cells. The h1/h2 hairline shares
+---the last cell instead of adding another row of margin.
 ---@param level integer
 ---@return integer
 function M.rows(level)
-  return math.max(2, math.ceil(M.em(level) * 1.25))
+  return math.max(1, math.ceil(M.em(level)))
 end
 
 ---@return boolean
@@ -150,7 +150,11 @@ function M.svg(text, level, opts)
   local cols = math.max(1, max_cols - 1)
   local fs = M.em(level) * cell_h
   local lines = M.wrap(text, math.max(1, cols - 1))
-  local rows = math.max(M.rows(level), #lines)
+  -- Hairline sits below the em-box, not the alphabetic baseline (which
+  -- still runs through descenders and the bottom of most glyphs).
+  local rule_pad = level <= 2 and 8 or 0
+  local content_bottom = math.floor(#lines * fs + rule_pad)
+  local rows = math.max(M.rows(level), math.max(1, math.ceil(content_bottom / cell_h)))
   local w, h = M.canvas_px(cols, rows, cell_w, cell_h)
   local p = style.palette()
   local fg = opts.fg or (level >= 6 and p.muted or p.fg)
@@ -163,12 +167,10 @@ function M.svg(text, level, opts)
       h
     ),
   }
-  local row_h = h / rows
+  -- Leftover cell pixels go above the glyphs, not under the rule/text.
+  local shift = math.max(0, h - content_bottom)
   for i, ln in ipairs(lines) do
-    -- Baseline inside this cell; leave room in the last cell for the h1/h2 rule.
-    local y = math.floor((i - 1) * row_h + fs * 0.8)
-    local floor = h - (level <= 2 and math.max(4, math.floor(cell_h * 0.15)) or 2)
-    y = math.min(y, floor)
+    local y = math.floor((i - 1) * fs + fs * 0.8) + shift
     parts[#parts + 1] = string.format(
       '<text x="2" y="%d" font-family="Liberation Sans, Noto Sans, DejaVu Sans, sans-serif" font-size="%.2f" font-weight="600" fill="%s">%s</text>',
       y,
@@ -178,7 +180,7 @@ function M.svg(text, level, opts)
     )
   end
   if level <= 2 then
-    local y = h - 2
+    local y = math.min(h - 1, content_bottom - 1 + shift)
     parts[#parts + 1] = string.format(
       '<line x1="0" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',
       y,
@@ -199,7 +201,7 @@ end
 function M.cache_path(text, level, max_cols, cell)
   local theme = vim.o.background == 'light' and 'light' or 'dark'
   local payload = table.concat({
-    'v8-cells',
+    'v11-rule',
     tostring(level),
     tostring(max_cols),
     tostring(math.floor((cell.cell_width or 0) * 100)),

@@ -193,7 +193,7 @@ local function is_concealed_media_row(plan, row)
     return false
   end
   for _, m in ipairs(plan) do
-    if m.row == row and (m.mermaid_source or m.mermaid_anchor or m.image_source) then
+    if m.row == row and (m.mermaid_source or m.mermaid_anchor or m.image_source or m.heading_source) then
       return true
     end
   end

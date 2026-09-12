@@ -165,7 +165,7 @@ local function heading(buf, node, marks, media, width)
         key = string.format('hsrc:%d', r),
         row = r,
         col = 0,
-        opts = { end_col = math.max(#rl, 1), conceal = '' },
+        opts = { end_col = math.max(#rl, 1), conceal_lines = '' },
         block_range = { srow, last },
         hide_in_block = true,
         heading_source = true,

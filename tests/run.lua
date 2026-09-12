@@ -112,9 +112,23 @@ local w1 = tonumber(svg:match('width="(%d+)"')) or 0
 local ht = tonumber(svg:match('height="(%d+)"')) or 0
 eq(w1, 39 * 9, 'heading svg is a full-width cell rectangle')
 eq(ht, 3 * 18, 'h1 svg is three cells tall')
-eq(heading_media.rows(1), 3, 'h1 occupies 2em * 1.25 cells')
+eq(heading_media.rows(1), 2, 'h1 type occupies two cells')
 eq(heading_media.rows(2), 2, 'h2 occupies two cells')
 eq(heading_media.rows(3), 2, 'h3 occupies two cells')
+eq(heading_media.rows(4), 1, 'h4 occupies one cell')
+eq(heading_media.rows(6), 1, 'h6 occupies one cell')
+local text_y = tonumber(svg:match('y="(%d+)"')) or 0
+local line_y = tonumber(svg:match('y1="(%d+)"')) or 0
+ok(line_y - text_y >= 12, 'h1 underline sits below the em-box')
+ok(ht - line_y <= 1, 'h1 underline sits at the bottom of the graphic')
+local svg2 = heading_media.svg('Hi', 2, { max_cols = 40, cell_width = 9, cell_height = 18, fg = '#c9d1d9', border = '#3d444d' })
+local t2 = tonumber(svg2:match('y="(%d+)"')) or 0
+local l2 = tonumber(svg2:match('y1="(%d+)"')) or 0
+local h2h = tonumber(svg2:match('height="(%d+)"')) or 0
+ok(l2 - t2 >= 12, 'h2 underline sits below the em-box')
+ok(h2h - l2 <= 1, 'h2 underline sits at the bottom of the graphic')
+local h4 = heading_media.svg('Hi', 4, { max_cols = 40, cell_width = 9, cell_height = 18 })
+eq(tonumber(h4:match('height="(%d+)"')), 18, 'h4 svg is one cell tall')
 
 -- buffer GFM constructs
 local has_parser = #vim.api.nvim_get_runtime_file('parser/markdown.so', false) > 0
@@ -560,8 +574,8 @@ else
       end
     end
     ok(jobs >= 2, 'unfocused heading plan includes a media job')
-    ok(atx and atx.heading_source and atx.opts.conceal == '', 'ATX heading source characters are concealed')
-    ok(atx and atx.opts.conceal_lines == nil, 'ATX heading does not use conceal_lines')
+    ok(atx and atx.heading_source and atx.opts.conceal_lines == '', 'ATX heading source uses conceal_lines')
+    ok(atx and atx.opts.conceal == nil, 'ATX heading does not leave a concealed blank line')
     ok(atx and atx.block_range and atx.block_range[1] == 0 and atx.block_range[2] == 0, 'ATX heading is one line')
     ok(
       setext_title
@@ -576,7 +590,7 @@ else
     local function row_concealed(row)
       local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
       for _, em in ipairs(marks) do
-        if em[4].conceal ~= nil then
+        if em[4].conceal ~= nil or em[4].conceal_lines ~= nil then
           return true
         end
       end

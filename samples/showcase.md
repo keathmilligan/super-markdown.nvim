@@ -12,10 +12,23 @@ Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
 
 ## Headings
 
+Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+
 ### Level 3
+
+Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+
 #### Level 4
+
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+
 ##### Level 5
+
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.
+
 ###### Level 6 (muted)
+
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.
 
 ## Emphasis and text
 

@@ -37,33 +37,45 @@ function M.block_host(buf, job)
 end
 
 ---Same as a standalone image: virt_lines on a visible neighbor line.
----Skip conceal_lines hosts (images / mermaid / display math) so the
----graphic is not attached to a hidden row.
+---Skip conceal_lines hosts (images / mermaid / display math / headings)
+---so the graphic is not attached to a hidden row.
 ---@param buf integer
 ---@param job table
 ---@return integer row
 ---@return boolean above
 function M.heading_host(buf, job)
-  if job.row <= 0 then
-    return job.row, true
-  end
-  local host = job.row - 1
   local s = apply.state(buf)
   local function hidden(row)
+    if row < 0 then
+      return true
+    end
     for _, m in ipairs(s.plan or {}) do
-      if m.row == row and (m.image_source or m.mermaid_source or m.mermaid_anchor) then
+      if m.row == row and (m.image_source or m.mermaid_source or m.mermaid_anchor or m.heading_source) then
         return true
       end
     end
     return false
   end
-  while host > 0 and hidden(host) do
+  local host = job.row - 1
+  while host >= 0 and hidden(host) do
     host = host - 1
   end
-  if hidden(host) then
-    return job.row, true
+  if host >= 0 and not hidden(host) then
+    return host, false
   end
-  return host, false
+  -- No visible line above (first line of the buffer): draw above the next
+  -- visible line so conceal_lines can hide the heading source without
+  -- taking the graphic with it.
+  local last = (job.end_row or (job.row + 1)) - 1
+  local after = last + 1
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  while after < line_count and hidden(after) do
+    after = after + 1
+  end
+  if after < line_count and not hidden(after) then
+    return after, true
+  end
+  return job.row, true
 end
 
 local function virt_line_opts(virt, above)
@@ -129,7 +141,7 @@ local function place_png(buf, win, job, file)
     local sz = protocol.size()
     local cap = math.max(1, max_cols - 1)
     cols = math.max(1, math.min(cap, math.floor(pw / sz.cell_width + 0.5)))
-    rows = math.max(2, math.floor(ph / sz.cell_height + 0.5))
+    rows = math.max(1, math.floor(ph / sz.cell_height + 0.5))
     if rows > max_rows then
       rows = max_rows
     end

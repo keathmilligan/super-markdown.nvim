@@ -4,6 +4,7 @@ local config = require 'super-markdown.config'
 local image = require 'super-markdown.media.image'
 local log = require 'super-markdown.log'
 local math_media = require 'super-markdown.media.math'
+local heading = require 'super-markdown.media.heading'
 local mermaid = require 'super-markdown.media.mermaid'
 local protocol = require 'super-markdown.media.protocol'
 local util = require 'super-markdown.util'
@@ -33,6 +34,51 @@ function M.block_host(buf, job)
     return job.row - 1, false
   end
   return job.row, true
+end
+
+---Same as a standalone image: virt_lines on a visible neighbor line.
+---Skip conceal_lines hosts (images / mermaid / display math) so the
+---graphic is not attached to a hidden row.
+---@param buf integer
+---@param job table
+---@return integer row
+---@return boolean above
+function M.heading_host(buf, job)
+  if job.row <= 0 then
+    return job.row, true
+  end
+  local host = job.row - 1
+  local s = apply.state(buf)
+  local function hidden(row)
+    for _, m in ipairs(s.plan or {}) do
+      if m.row == row and (m.image_source or m.mermaid_source or m.mermaid_anchor) then
+        return true
+      end
+    end
+    return false
+  end
+  while host > 0 and hidden(host) do
+    host = host - 1
+  end
+  if hidden(host) then
+    return job.row, true
+  end
+  return host, false
+end
+
+local function virt_line_opts(virt, above)
+  local opts = {
+    virt_lines = virt,
+    virt_text_hide = false,
+  }
+  if above then
+    opts.virt_lines_above = true
+  end
+  -- Default virt_lines wrap. A wrapped placeholder row stretches the PNG.
+  if vim.fn.has 'nvim-0.11' == 1 then
+    opts.virt_lines_overflow = 'trunc'
+  end
+  return opts
 end
 
 ---@param job table
@@ -77,6 +123,16 @@ local function place_png(buf, win, job, file)
   local cols, rows
   if job.kind == 'mermaid' or job.standalone then
     cols, rows = protocol.fit_to_width(pw, ph, max_cols, max_rows)
+  elseif job.kind == 'heading' then
+    -- Bitmap is already an integer number of cells. Do not fit_cells: that
+    -- changes r/c and is what stretched/clipped thin heading strips.
+    local sz = protocol.size()
+    local cap = math.max(1, max_cols - 1)
+    cols = math.max(1, math.min(cap, math.floor(pw / sz.cell_width + 0.5)))
+    rows = math.max(2, math.floor(ph / sz.cell_height + 0.5))
+    if rows > max_rows then
+      rows = max_rows
+    end
   else
     cols, rows = protocol.fit_cells(pw, ph, max_cols, max_rows)
   end
@@ -94,15 +150,10 @@ local function place_png(buf, win, job, file)
   local grid, hl = protocol.grid(img.id, pid, rows, cols)
   local s = apply.state(buf)
   local prefix = 'media:' .. job.key
-  local existing = {}
-  for _, m in ipairs(s.plan) do
-    if m.key ~= prefix and m.key:sub(1, #prefix + 1) ~= prefix .. ':' then
-      existing[#existing + 1] = m
-    end
-  end
+  s.media_marks = s.media_marks or {}
 
   local function add_mark(mark)
-    existing[#existing + 1] = mark
+    s.media_marks[job.key] = mark
   end
 
   if job.kind == 'math' and not job.display then
@@ -119,6 +170,23 @@ local function place_png(buf, win, job, file)
       },
       hide_on_cursor = true,
     }
+  elseif job.kind == 'heading' then
+    local last = (job.end_row or (job.row + 1)) - 1
+    local virt = {}
+    for _, g in ipairs(grid) do
+      virt[#virt + 1] = { { g, hl } }
+    end
+    if #virt > 0 then
+      local host, above = M.heading_host(buf, job)
+      add_mark {
+        key = prefix,
+        row = host,
+        col = 0,
+        opts = virt_line_opts(virt, above),
+        block_range = { job.row, last },
+        hide_in_block = true,
+      }
+    end
   elseif job.kind == 'mermaid' or job.display then
     local all = {}
     for i = 1, #grid do
@@ -129,11 +197,7 @@ local function place_png(buf, win, job, file)
       key = prefix,
       row = host,
       col = 0,
-      opts = {
-        virt_lines = all,
-        virt_lines_above = above or nil,
-        virt_text_hide = false,
-      },
+      opts = virt_line_opts(all, above),
     }
   elseif job.standalone then
     local virt = {}
@@ -145,10 +209,7 @@ local function place_png(buf, win, job, file)
       key = prefix,
       row = anchor,
       col = 0,
-      opts = {
-        virt_lines = virt,
-        virt_text_hide = false,
-      },
+      opts = virt_line_opts(virt, false),
     }
   else
     local virt = {}
@@ -169,6 +230,15 @@ local function place_png(buf, win, job, file)
   end
   s.media_shown = s.media_shown or {}
   s.media_shown[job.key] = nil
+  local existing = {}
+  for _, m in ipairs(s.plan) do
+    if not m.key:match '^media:' then
+      existing[#existing + 1] = m
+    end
+  end
+  for _, m in pairs(s.media_marks) do
+    existing[#existing + 1] = m
+  end
   apply.apply(buf, existing, s.cursor_row)
 end
 
@@ -213,12 +283,6 @@ local function place_mermaid_error(buf, job, err)
     end
   end
   local prefix = 'media:' .. job.key
-  local existing = {}
-  for _, m in ipairs(s.plan) do
-    if m.key ~= prefix and m.key:sub(1, #prefix + 1) ~= prefix .. ':' then
-      existing[#existing + 1] = m
-    end
-  end
   local sig = job.row .. '\0' .. err
   if s.media_shown and s.media_shown[job.key] == sig then
     return
@@ -226,16 +290,22 @@ local function place_mermaid_error(buf, job, err)
   s.media_shown = s.media_shown or {}
   s.media_shown[job.key] = sig
   local host, above = M.block_host(buf, job)
-  existing[#existing + 1] = {
+  s.media_marks = s.media_marks or {}
+  s.media_marks[job.key] = {
     key = prefix,
     row = host,
     col = 0,
-    opts = {
-      virt_lines = virt,
-      virt_lines_above = above or nil,
-      virt_text_hide = false,
-    },
+    opts = virt_line_opts(virt, above),
   }
+  local existing = {}
+  for _, m in ipairs(s.plan) do
+    if not m.key:match '^media:' then
+      existing[#existing + 1] = m
+    end
+  end
+  for _, m in pairs(s.media_marks) do
+    existing[#existing + 1] = m
+  end
   apply.apply(buf, existing, s.cursor_row)
 end
 
@@ -367,6 +437,17 @@ function M.update(buf, win, jobs)
       ensure_job(buf, job, dest, function(done)
         return math_media.render(job.content, job.display, dest, height, done)
       end)
+    elseif job.kind == 'heading' then
+      local cell = protocol.size()
+      local cols = M.job_max_cols(job, buf, win)
+      local dest = heading.cache_path(job.content, job.level, cols, cell)
+      ensure_job(buf, job, dest, function(done)
+        return heading.render(job.content, job.level, dest, {
+          max_cols = cols,
+          cell_width = cell.cell_width,
+          cell_height = cell.cell_height,
+        }, done)
+      end)
     end
   end
 
@@ -374,6 +455,13 @@ function M.update(buf, win, jobs)
     if not live[key] then
       kill_job(handle)
       s.jobs[key] = nil
+    end
+  end
+  if s.media_marks then
+    for key in pairs(s.media_marks) do
+      if not live[key] then
+        s.media_marks[key] = nil
+      end
     end
   end
 end

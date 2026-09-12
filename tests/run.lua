@@ -94,6 +94,28 @@ eq(emoji.get 'rocket', '🚀', 'emoji rocket')
 eq(emoji.get 'file_folder', '📁', 'emoji folder')
 eq(emoji.get 'not_a_real_emoji', nil, 'unknown shortcode')
 
+local heading_media = require 'super-markdown.media.heading'
+eq(heading_media.em(1), 2, 'h1 is 2em')
+eq(heading_media.em(2), 1.5, 'h2 is 1.5em')
+eq(heading_media.em(6), 0.85, 'h6 is 0.85em')
+eq(heading_media.visible_text '**Bold** and [lab](url)', 'Bold and lab', 'heading visible text strips inline markup')
+eq(heading_media.wrap('one two three', 5), { 'one', 'two', 'three' }, 'heading wrap at column budget')
+local svg = heading_media.svg('Hello', 1, { max_cols = 40, cell_width = 9, cell_height = 18, fg = '#c9d1d9', border = '#3d444d' })
+ok(svg:find('font-size="36', 1, true) ~= nil, 'h1 svg font-size is 2em of cell height')
+ok(svg:find('font-weight="600"', 1, true) ~= nil, 'heading svg is weight 600')
+ok(svg:find('<line', 1, true) ~= nil, 'h1 svg includes a bottom rule')
+ok(
+  heading_media.svg('Hi', 3, { max_cols = 40, cell_width = 9, cell_height = 18 }):find('<line', 1, true) == nil,
+  'h3 svg has no bottom rule'
+)
+local w1 = tonumber(svg:match('width="(%d+)"')) or 0
+local ht = tonumber(svg:match('height="(%d+)"')) or 0
+eq(w1, 39 * 9, 'heading svg is a full-width cell rectangle')
+eq(ht, 3 * 18, 'h1 svg is three cells tall')
+eq(heading_media.rows(1), 3, 'h1 occupies 2em * 1.25 cells')
+eq(heading_media.rows(2), 2, 'h2 occupies two cells')
+eq(heading_media.rows(3), 2, 'h3 occupies two cells')
+
 -- buffer GFM constructs
 local has_parser = #vim.api.nvim_get_runtime_file('parser/markdown.so', false) > 0
 if not has_parser then
@@ -118,7 +140,7 @@ else
       local kind = m.key:match('^(%a+)')
       kinds[kind] = (kinds[kind] or 0) + 1
     end
-    ok((kinds.h or 0) > 0, 'parsed headings')
+    ok((kinds.h or 0) > 0 or (kinds.hsrc or 0) > 0, 'parsed headings')
     ok((kinds.li or 0) > 0 or (kinds.task or 0) > 0, 'parsed lists or tasks')
     local task_hides_dash = false
     for _, m in ipairs(plan.marks) do
@@ -504,6 +526,114 @@ else
   apply.cursor(buf, 0)
   local hidden = math_opts(0)
   ok(hidden.virt_text == nil and hidden.conceal == nil, 'inline math hidden on cursor line')
+
+  local orig_avail = heading_media.available
+  heading_media.available = function()
+    return true
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '# Title One',
+    '',
+    'Setext',
+    '======',
+    'body',
+  })
+  pcall(vim.treesitter.start, buf, 'markdown')
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local atx, setext_title, setext_rule, jobs = nil, nil, nil, 0
+    local h_hl = 0
+    for _, m in ipairs(plan.marks) do
+      if m.key == 'hsrc:0' then
+        atx = m
+      elseif m.key == 'hsrc:2' then
+        setext_title = m
+      elseif m.key == 'hsrc:3' then
+        setext_rule = m
+      elseif m.key:match '^h:' then
+        h_hl = h_hl + 1
+      end
+    end
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'heading' then
+        jobs = jobs + 1
+      end
+    end
+    ok(jobs >= 2, 'unfocused heading plan includes a media job')
+    ok(atx and atx.heading_source and atx.opts.conceal == '', 'ATX heading source characters are concealed')
+    ok(atx and atx.opts.conceal_lines == nil, 'ATX heading does not use conceal_lines')
+    ok(atx and atx.block_range and atx.block_range[1] == 0 and atx.block_range[2] == 0, 'ATX heading is one line')
+    ok(
+      setext_title
+        and setext_rule
+        and setext_title.block_range[1] == 2
+        and setext_title.block_range[2] == 3
+        and setext_rule.block_range[1] == 2
+        and setext_rule.block_range[2] == 3,
+      'setext span covers title and underline'
+    )
+    eq(h_hl, 0, 'graphics path does not apply SuperMarkdownH*')
+    local function row_concealed(row)
+      local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, { row, 0 }, { row, -1 }, { details = true })
+      for _, em in ipairs(marks) do
+        if em[4].conceal ~= nil then
+          return true
+        end
+      end
+      return false
+    end
+    apply.apply(buf, plan.marks, 4)
+    ok(row_concealed(0) and row_concealed(2) and row_concealed(3), 'heading source hidden when cursor is outside')
+    apply.apply(buf, plan.marks, 0)
+    ok(not row_concealed(0), 'ATX heading source visible when focused')
+    local focused_hl = false
+    for _, em in ipairs(vim.api.nvim_buf_get_extmarks(buf, apply.ns, { 0, 0 }, { 0, -1 }, { details = true })) do
+      if em[4].hl_group and tostring(em[4].hl_group):match '^SuperMarkdownH' then
+        focused_hl = true
+      end
+    end
+    ok(not focused_hl, 'focused heading has no SuperMarkdownH* highlight')
+    local media = require 'super-markdown.media'
+    local host, above = media.heading_host(buf, { row = 2, end_row = 4 })
+    eq({ host, above }, { 1, false }, 'heading graphic hosts on the previous line like an image')
+    local hosted = vim.list_extend(vim.deepcopy(plan.marks), {
+      {
+        key = 'media:heading:0',
+        row = 0,
+        col = 0,
+        hide_in_block = true,
+        block_range = { 0, 0 },
+        opts = { virt_lines = { { { 'H', 'Normal' } } }, virt_lines_above = true },
+      },
+    })
+    local function has_heading_vl()
+      local marks = vim.api.nvim_buf_get_extmarks(buf, apply.ns, 0, -1, { details = true })
+      for _, em in ipairs(marks) do
+        if em[4].virt_lines then
+          return true
+        end
+      end
+      return false
+    end
+    apply.apply(buf, hosted, 0)
+    ok(not has_heading_vl(), 'heading graphic hidden when focused')
+    apply.apply(buf, hosted, 4)
+    ok(has_heading_vl(), 'heading graphic shown when unfocused')
+    ok(not apply.is_media_open(plan.marks, 0), 'heading source is not skipped as a media open row')
+    apply.apply(buf, plan.marks, 4)
+    vim.api.nvim_win_set_cursor(win, { 5, 0 })
+    apply.step_up(buf, win)
+    eq(vim.api.nvim_win_get_cursor(win)[1], 4, 'k from below a heading lands on the heading')
+    apply.apply(buf, plan.marks, 4)
+    vim.api.nvim_win_set_cursor(win, { 5, 0 })
+    apply.cursor(buf, 4)
+    vim.api.nvim_win_set_cursor(win, { 1, 0 })
+    apply.on_cursor(buf, win)
+    eq(vim.api.nvim_win_get_cursor(win)[1], 1, 'jump to start is not intercepted as a skipped heading')
+  else
+    ok(false, 'parse heading graphics')
+  end
+  heading_media.available = orig_avail
 end
 
 -- images

@@ -1,4 +1,5 @@
 local emoji = require 'super-markdown.emoji'
+local heading_media = require 'super-markdown.media.heading'
 local util = require 'super-markdown.util'
 
 local M = {}
@@ -124,35 +125,69 @@ end
 ---@param buf integer
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
+---@param media table[]
 ---@param width integer
-local function heading(buf, node, marks, width)
-  local row = node:range()
-  local ln = line(buf, row)
+local function heading(buf, node, marks, media, width)
+  local srow, _, erow = node:range()
+  local last = math.max(srow, erow - 1)
+  local ln = line(buf, srow)
   local hashes, rest = ln:match('^(#+)%s*(.*)$')
-  local level = hashes and #hashes or 1
-  if not hashes then
-    local setext = line(buf, row + 1)
+  local level = 1
+  local text = ''
+  if hashes then
+    level = math.min(6, math.max(1, #hashes))
+    rest = (rest or ''):gsub('%s+#*%s*$', '')
+    text = heading_media.visible_text(rest)
+  else
+    local setext = line(buf, last)
     if setext:match('^=+') then
       level = 1
-    elseif setext:match('^%-+') then
+    else
       level = 2
     end
-  else
+    text = heading_media.visible_text(ln)
+  end
+  if heading_media.available() then
+    media[#media + 1] = {
+      key = string.format('heading:%d', srow),
+      kind = 'heading',
+      row = srow,
+      col = 0,
+      end_row = last + 1,
+      end_col = #ln,
+      content = text,
+      level = level,
+      max_rows = 8,
+    }
+    for r = srow, last do
+      local rl = line(buf, r)
+      add(marks, {
+        key = string.format('hsrc:%d', r),
+        row = r,
+        col = 0,
+        opts = { end_col = math.max(#rl, 1), conceal = '' },
+        block_range = { srow, last },
+        hide_in_block = true,
+        heading_source = true,
+      })
+    end
+    return
+  end
+  if hashes then
     local end_col = #hashes
     if ln:sub(end_col + 1, end_col + 1) == ' ' then
       end_col = end_col + 1
     end
     add(marks, {
-      key = string.format('hmark:%d', row),
-      row = row,
+      key = string.format('hmark:%d', srow),
+      row = srow,
       col = 0,
       opts = { end_col = end_col, conceal = '' },
     })
   end
-  level = math.min(6, math.max(1, level))
   add(marks, {
-    key = string.format('h:%d', row),
-    row = row,
+    key = string.format('h:%d', srow),
+    row = srow,
     col = 0,
     opts = {
       end_col = #ln,
@@ -948,7 +983,7 @@ function M.parse(buf, win, overscan)
         for id, node in md_query:iter_captures(root, buf, srow, erow) do
           local cap = md_query.captures[id]
           if cap == 'heading' then
-            heading(buf, node, marks, width)
+            heading(buf, node, marks, media, width)
           elseif cap == 'code' then
             local a, _, b = node:range()
             code_ranges[#code_ranges + 1] = { a, b }

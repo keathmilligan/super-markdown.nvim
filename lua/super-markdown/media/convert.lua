@@ -29,7 +29,12 @@ function M.svg_to_png(src, dest, opts, on_done)
   end
   local o = opts --[[@as table]]
   local args = { 'rsvg-convert', '-f', 'png', '-o', dest }
-  if o.width then
+  if o.width and o.height then
+    args[#args + 1] = '-w'
+    args[#args + 1] = tostring(math.max(1, o.width))
+    args[#args + 1] = '-h'
+    args[#args + 1] = tostring(math.max(1, o.height))
+  elseif o.width then
     args[#args + 1] = '-w'
     args[#args + 1] = tostring(math.max(1, o.width))
     args[#args + 1] = '-a'

@@ -103,10 +103,8 @@ local function render(buf)
   for _, m in ipairs(plan.marks) do
     marks[#marks + 1] = m
   end
-  for _, m in ipairs(s.plan) do
-    if m.key:match '^media:' then
-      marks[#marks + 1] = m
-    end
+  for _, m in pairs(s.media_marks or {}) do
+    marks[#marks + 1] = m
   end
   apply.apply(buf, marks, cursor[1] - 1)
   s.parsed = plan.range

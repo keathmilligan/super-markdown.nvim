@@ -16,6 +16,7 @@ M.ns = vim.api.nvim_create_namespace 'super-markdown'
 ---@field hide_in_block? boolean
 ---@field show_in_block? boolean
 ---@field image_source? boolean
+---@field heading_source? boolean
 
 ---@class super_markdown.BufState
 ---@field enabled boolean
@@ -27,6 +28,7 @@ M.ns = vim.api.nvim_create_namespace 'super-markdown'
 ---@field gen integer
 ---@field jobs table<string, { proc?: vim.SystemObj, dest: string }>
 ---@field media table[]|nil
+---@field media_marks table<string, super_markdown.Mark>|nil
 ---@field parsed { [1]: integer, [2]: integer }|nil
 
 ---@type table<integer, super_markdown.BufState>
@@ -130,6 +132,9 @@ function M.apply(buf, plan, cursor_row)
     if mark.image_source and cursor_row == mark.row then
       goto continue
     end
+    if mark.heading_source and in_block then
+      goto continue
+    end
     local row = mark.row
     by_row[row] = by_row[row] or {}
     by_row[row][#by_row[row] + 1] = mark
@@ -179,6 +184,42 @@ function M.is_media_open(plan, row)
   return false
 end
 
+---Rows hidden with conceal_lines while the cursor is outside the block.
+---@param plan super_markdown.Mark[]|nil
+---@param row integer
+---@return boolean
+local function is_concealed_media_row(plan, row)
+  if not plan then
+    return false
+  end
+  for _, m in ipairs(plan) do
+    if m.row == row and (m.mermaid_source or m.mermaid_anchor or m.image_source) then
+      return true
+    end
+  end
+  return false
+end
+
+---Closest heading source row strictly between `after` and `before` when moving up.
+---@param plan super_markdown.Mark[]|nil
+---@param before_row integer
+---@param after_row integer
+---@return integer|nil
+local function skipped_heading(plan, before_row, after_row)
+  if not plan or before_row <= after_row + 1 then
+    return nil
+  end
+  local best
+  for _, m in ipairs(plan) do
+    if m.heading_source and m.row < before_row and m.row > after_row then
+      if not best or m.row > best then
+        best = m.row
+      end
+    end
+  end
+  return best
+end
+
 ---@param buf integer
 ---@param new_row integer
 function M.cursor(buf, new_row)
@@ -205,7 +246,8 @@ function M.on_cursor(buf, win)
   local row, col = cur[1] - 1, cur[2]
   local s = M.state(buf)
   local prev = s.cursor_row
-  if M.is_media_open(s.plan, row) and prev > row and row > 0 then
+  -- Only unstick mermaid/image traps. Do not intercept long jumps (gg / Ctrl-Home).
+  if M.is_media_open(s.plan, row) and prev == row + 1 and row > 0 then
     row = row - 1
     pcall(vim.api.nvim_win_set_cursor, win, { row + 1, col })
   end
@@ -215,7 +257,13 @@ function M.on_cursor(buf, win)
       return
     end
     local now = vim.api.nvim_win_get_cursor(win)[1] - 1
-    if now ~= row and M.is_media_open(M.state(buf).plan, now) then
+    if now == row then
+      return
+    end
+    if M.is_media_open(M.state(buf).plan, now) then
+      pcall(vim.api.nvim_win_set_cursor, win, { row + 1, col })
+    elseif prev > row and now > row then
+      -- conceal_lines snapped the cursor back down (e.g. to EOF).
       pcall(vim.api.nvim_win_set_cursor, win, { row + 1, col })
     end
   end
@@ -232,11 +280,33 @@ function M.step_up(buf, win)
   local before = vim.api.nvim_win_get_cursor(win)
   local count = vim.v.count1
   vim.cmd('normal! ' .. count .. 'k')
+  local function lnum()
+    return vim.api.nvim_win_get_cursor(win)[1]
+  end
+  -- conceal_lines (mermaid / images) can snap the cursor back, so `k` from
+  -- the last visible line looks stuck. Walk up until the line actually changes.
+  if lnum() >= before[1] and before[1] > 1 then
+    local plan = M.state(buf).plan
+    local target = before[1] - 1
+    local guard = 0
+    while target >= 1 and guard < 400 do
+      if is_concealed_media_row(plan, target - 1) then
+        target = target - 1
+      else
+        pcall(vim.api.nvim_win_set_cursor, win, { target, before[2] })
+        if lnum() < before[1] then
+          break
+        end
+        target = target - 1
+      end
+      guard = guard + 1
+    end
+  end
   local after = vim.api.nvim_win_get_cursor(win)
-  -- virt_lines (images / mermaid) can swallow `k` when the host line is
-  -- off-screen. If the cursor did not move, step to the previous buffer line.
-  if after[1] == before[1] and before[1] > 1 then
-    pcall(vim.api.nvim_win_set_cursor, win, { before[1] - 1, before[2] })
+  -- Only land on a heading that `k` just skipped (adjacent), never a long jump.
+  local heading = skipped_heading(M.state(buf).plan, before[1] - 1, after[1] - 1)
+  if heading and (before[1] - 1) - heading <= 2 then
+    pcall(vim.api.nvim_win_set_cursor, win, { heading + 1, before[2] })
   end
   M.on_cursor(buf, win)
 end
@@ -255,6 +325,7 @@ function M.clear(buf)
     s.media = nil
     s.media_sig = nil
     s.media_shown = nil
+    s.media_marks = nil
     s.ids = {}
     s.by_row = {}
     s.plan = {}

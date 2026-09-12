@@ -1,16 +1,16 @@
 ---
 id: gfm-inline-render
-status: review
+status: accepted
 features: [plugin, render, media, style]
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-11
 ---
 
 # GFM inline markdown rendering
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-09 | 2026-09-09 |
+| 2026-09-09 | 2026-09-11 |
 
 ## What
 
@@ -179,3 +179,4 @@ Details, trade-offs, and pipelines are in
 | 2026-09-09 | Resolved open questions: no Normal restyle; no mmdc/Chromium fallback |
 | 2026-09-09 | Approved; implementation started |
 | 2026-09-09 | Implementation complete; math helper uses MathJax SVG |
+| 2026-09-11 | Accepted; living specs written under specifications/ |

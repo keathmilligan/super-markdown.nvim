@@ -1,5 +1,6 @@
 local emoji = require 'super-markdown.emoji'
 local heading_media = require 'super-markdown.media.heading'
+local mdtable = require 'super-markdown.table'
 local util = require 'super-markdown.util'
 
 local M = {}
@@ -74,6 +75,7 @@ end
 ---@field cells { row: integer, col: integer, end_col: integer }[]
 ---@field pads table<string, { row: integer, col: integer, n: integer }>
 ---@field tables table[]
+---@field width integer
 local ctx ---@type super_markdown.ParseCtx|nil
 
 ---@param key string
@@ -437,76 +439,6 @@ local function task(buf, node, marks, checked)
   })
 end
 
----@param raw string
----@param base_hl string
----@return { [1]: string, [2]: string }[]
----@return integer
-local function cell_chunks(raw, base_hl)
-  local s = vim.trim(raw)
-  local chunks = {}
-  local i = 1
-  local function push(text, hl)
-    if text ~= '' then
-      chunks[#chunks + 1] = { text, hl }
-    end
-  end
-  while i <= #s do
-    local rest = s:sub(i)
-    local a, b, cap = rest:find '^`([^`]+)`'
-    if a == 1 then
-      push(cap, 'SuperMarkdownCode')
-      i = i + b
-    else
-      a, b, cap = rest:find '^%*%*([^*]+)%*%*'
-      if a == 1 then
-        push(cap, 'SuperMarkdownStrong')
-        i = i + b
-      else
-        a, b, cap = rest:find '^~~([^~]+)~~'
-        if a == 1 then
-          push(cap, 'SuperMarkdownStrike')
-          i = i + b
-        else
-          a, b, cap = rest:find '^%*([^*]+)%*'
-          if a == 1 then
-            push(cap, 'SuperMarkdownEm')
-            i = i + b
-          else
-            a, b, cap = rest:find '^%[([^%]]+)%]%([^)]+%)'
-            if a == 1 then
-              push(cap, 'SuperMarkdownLink')
-              i = i + b
-            else
-              a, b, cap = rest:find '^:([%w_+-]+):'
-              if a == 1 then
-                push(emoji.get(cap) or rest:sub(a, b), base_hl)
-                i = i + b
-              else
-                local nxt = rest:find '[`%*~%[:]'
-                if nxt and nxt > 1 then
-                  push(rest:sub(1, nxt - 1), base_hl)
-                  i = i + nxt - 1
-                elseif nxt == 1 then
-                  push(rest:sub(1, 1), base_hl)
-                  i = i + 1
-                else
-                  push(rest, base_hl)
-                  break
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-  local width = 0
-  for _, ch in ipairs(chunks) do
-    width = width + vim.fn.strdisplaywidth(ch[1])
-  end
-  return chunks, width
-end
-
 local function table_block(buf, node, marks)
   if not ctx then
     return
@@ -539,6 +471,7 @@ local function table_block(buf, node, marks)
       stripe = kind == 'data' and data_i % 2 == 1,
       line_len = #ln,
       indent = pipe and (pipe - 1) or 0,
+      line = ln,
     }
   end
   ctx.tables[#ctx.tables + 1] = tbl
@@ -548,53 +481,7 @@ local function flush_tables()
   if not ctx then
     return
   end
-  for t, tbl in ipairs(ctx.tables) do
-    local widths = {}
-    for _, row in ipairs(tbl.rows) do
-      if row.kind ~= 'delim' then
-        local hl = row.kind == 'head' and 'SuperMarkdownTableHead' or 'Normal'
-        for i, raw in ipairs(row.cells) do
-          local _, w = cell_chunks(raw, hl)
-          widths[i] = math.max(widths[i] or 0, w)
-        end
-      end
-    end
-    for _, row in ipairs(tbl.rows) do
-      local chunks = { { '│', 'SuperMarkdownTableBorder' } }
-      if row.kind == 'delim' then
-        for i = 1, #widths do
-          chunks[#chunks + 1] = { string.rep('─', widths[i] + 2), 'SuperMarkdownTableBorder' }
-          chunks[#chunks + 1] = { '│', 'SuperMarkdownTableBorder' }
-        end
-      else
-        local hl = row.kind == 'head' and 'SuperMarkdownTableHead'
-          or (row.stripe and 'SuperMarkdownTableRowAlt' or 'Normal')
-        for i, raw in ipairs(row.cells) do
-          local inner, w = cell_chunks(raw, hl)
-          local pad = math.max(0, (widths[i] or 0) - w)
-          chunks[#chunks + 1] = { ' ', hl }
-          for _, ch in ipairs(inner) do
-            chunks[#chunks + 1] = ch
-          end
-          chunks[#chunks + 1] = { string.rep(' ', pad) .. ' ', hl }
-          chunks[#chunks + 1] = { '│', 'SuperMarkdownTableBorder' }
-        end
-      end
-      add(ctx.marks, {
-        key = string.format('tov:%d:%d', t, row.row),
-        row = row.row,
-        col = row.indent or 0,
-        opts = {
-          end_col = row.line_len,
-          conceal = '',
-          virt_text = chunks,
-          virt_text_pos = 'overlay',
-          virt_text_hide = true,
-        },
-        hide_on_cursor = true,
-      })
-    end
-  end
+  mdtable.flush(ctx)
 end
 
 ---@param buf integer
@@ -969,7 +856,7 @@ function M.parse(buf, win, overscan)
   local marks = {} ---@type super_markdown.Mark[]
   local media = {}
   local code_ranges = {}
-  ctx = { buf = buf, marks = marks, cells = {}, pads = {}, tables = {} }
+  ctx = { buf = buf, marks = marks, cells = {}, pads = {}, tables = {}, width = width }
 
   local function walk(langtree)
     local trees = langtree:trees()

@@ -74,7 +74,7 @@ require('super-markdown').setup {
     enabled = true,
     mermaid = true,
     math = true,
-    -- Mermaid and standalone images. 0–1 = window fraction; >1 = columns.
+    -- Mermaid, standalone images, and tables. 0–1 = window fraction; >1 = columns.
     max_width = 0.5,
   },
 }

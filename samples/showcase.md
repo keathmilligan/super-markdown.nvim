@@ -59,6 +59,10 @@ A footnote looks like this.[^sample]
 | `npm run dev:client` | Run only the browser application on port 5173. |
 | **bold** cell | ~~strike~~ and a [link](https://example.com) |
 
+| Keep | Wrap this cell |
+| --- | --- |
+| short | Long prose wraps inside this cell and the short cell grows with it so both rows stay a rectangle. |
+
 ## Quote and rule
 
 > A plain blockquote is not an alert.

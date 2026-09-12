@@ -94,6 +94,13 @@ leading spaces before `|`. Overlay formatting SHALL start at the first `|`.
 Source pipes SHALL be concealed. The cursor line SHALL show the source table
 row.
 
+When a table is wider than `media.max_width` (same cap as mermaid and
+standalone images), column widths SHALL shrink so the table fits. Cell text
+SHALL wrap on word boundaries inside the cell, and the row SHALL grow
+downward. Shorter cells in the same row SHALL pad to that height (HTML table
+layout). Extra wrapped lines SHALL use `virt_lines`, or overlay the source
+line's wrap continuations when those already exist.
+
 ### Other chrome
 
 Thematic breaks SHALL render as a full-width border rule. Links SHALL use
@@ -114,3 +121,4 @@ above the window.
 | --- | --- |
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-12 | Unfocused headings are graphics; focused headings show source |
+| 2026-09-12 | Wide tables wrap cell text and pad sibling cells to row height |

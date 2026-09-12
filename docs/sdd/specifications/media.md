@@ -37,9 +37,9 @@ A standalone image line (`![…](…)` as the whole line) SHALL hide that source
 line unless the cursor is on it. The rendered image SHALL appear before the
 source line. Inline images in a paragraph SHALL stay visible.
 
-Mermaid diagrams and standalone images SHALL fit `media.max_width` (default
-50% of window content width; values `>1` are columns). Inline images SHALL
-fit the window width. Mermaid SHALL re-place on window resize.
+Mermaid diagrams, standalone images, and tables SHALL fit `media.max_width`
+(default 50% of window content width; values `>1` are columns). Inline
+images SHALL fit the window width. Mermaid SHALL re-place on window resize.
 
 ### Mermaid
 
@@ -86,3 +86,4 @@ headings SHALL NOT emit graphics and SHALL fall back to render chrome.
 | --- | --- |
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-12 | Unfocused headings render as cached Kitty graphics |
+| 2026-09-12 | Tables share media.max_width with mermaid and standalone images |

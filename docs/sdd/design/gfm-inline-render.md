@@ -355,9 +355,9 @@ health and skip images.
 - Mermaid without a browser may fail on diagram types that rely on HTML
   labels or heavy layout. Mitigation: log the error, keep the fence as
   source, and cover `samples/mermaid.md` in tests so failures are visible.
-- Concealed text does not change wrap points (Neovim limitation). Tables
-  with long links can still look broken. Same as render-markdown; not
-  solvable in this plugin.
+- Concealed text does not change wrap points (Neovim limitation). Wide
+  tables wrap cell text to the window and pad sibling cells to the row
+  height; leftover source wrap lines are covered with overlay continuations.
 - Kitty images and extmark virt-lines interact badly with `wrap`,
   `colorcolumn`, and diff mode. Skip render in diff; keep images to block
   elements.

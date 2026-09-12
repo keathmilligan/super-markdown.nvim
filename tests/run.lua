@@ -94,6 +94,39 @@ eq(emoji.get 'rocket', '🚀', 'emoji rocket')
 eq(emoji.get 'file_folder', '📁', 'emoji folder')
 eq(emoji.get 'not_a_real_emoji', nil, 'unknown shortcode')
 
+local tmod = require 'super-markdown.table'
+eq(
+  tmod.wrap_chunks({ { 'one two three', 'Normal' } }, 5),
+  { { { 'one', 'Normal' } }, { { 'two', 'Normal' } }, { { 'three', 'Normal' } } },
+  'wrap chunks at word boundaries'
+)
+eq(tmod.col_widths({ 3, 20 }, 10), { 3, 7 }, 'short column keeps natural width')
+eq(tmod.col_widths({ 4, 4 }, 20), { 4, 4 }, 'fitting table keeps natural widths')
+eq(tmod.alignment ':---:', 'center', 'center alignment')
+eq(tmod.alignment '---:', 'right', 'right alignment')
+eq(tmod.alignment '---', 'left', 'left alignment')
+eq(tmod.byte_at_display('abcdefghij', 5), 5, 'byte at display column')
+eq(tmod.byte_at_display('', 5), 0, 'byte at display of empty string')
+eq(tmod.pad_chunks({ { 'ab', 'Normal' } }, 5, 'left', 'Normal'), { { 'ab', 'Normal' }, { '   ', 'Normal' } }, 'left pad cell')
+eq(tmod.pad_chunks({ { 'ab', 'Normal' } }, 5, 'right', 'Normal'), { { '   ', 'Normal' }, { 'ab', 'Normal' } }, 'right pad cell')
+local wrapped_hl = tmod.wrap_chunks({ { 'hello ', 'Normal' }, { 'world', 'SuperMarkdownStrong' } }, 5)
+eq(wrapped_hl[1], { { 'hello', 'Normal' } }, 'wrap keeps first-line highlight')
+eq(wrapped_hl[2], { { 'world', 'SuperMarkdownStrong' } }, 'wrap keeps second-line highlight')
+
+local cfg = require 'super-markdown.config'
+eq(cfg.max_cols(80), 40, 'max_width 0.5 of 80 cols')
+eq(cfg.max_cols(1), 1, 'max_cols at least 1')
+do
+  local prev = cfg.get().media.max_width
+  cfg.get().media.max_width = 20
+  local abs = cfg.max_cols(80)
+  cfg.get().media.max_width = 100
+  local capped = cfg.max_cols(80)
+  cfg.get().media.max_width = prev
+  eq(abs, 20, 'absolute max_width is columns')
+  eq(capped, 80, 'absolute max_width capped to window')
+end
+
 local heading_media = require 'super-markdown.media.heading'
 eq(heading_media.em(1), 2, 'h1 is 2em')
 eq(heading_media.em(2), 1.5, 'h2 is 1.5em')
@@ -380,6 +413,94 @@ else
     ok(indented >= 3, 'indented table overlay starts at first pipe')
   else
     ok(false, 'parse indented table')
+  end
+
+  local function chunks_text(chunks)
+    local s = ''
+    for _, c in ipairs(chunks or {}) do
+      s = s .. c[1]
+    end
+    return s
+  end
+
+  local old_cols = vim.o.columns
+  vim.o.columns = 48
+  pcall(vim.api.nvim_win_set_width, win, 48)
+  local long = ('alpha beta gamma delta epsilon zeta '):rep(4)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| Keep | Wrap this cell |',
+    '| --- | --- |',
+    '| x | ' .. vim.trim(long) .. ' |',
+  })
+  plan = parse.parse(buf, win, 50)
+  vim.o.columns = old_cols
+  if plan then
+    local data, extra_chunks
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' and m.row == 2 then
+        if m.key:match '^tov:%d+:%d+$' then
+          data = m
+        elseif not extra_chunks then
+          extra_chunks = m.opts.virt_text
+        end
+      end
+    end
+    ok(data ~= nil, 'wrapped table data overlay')
+    if data then
+      local first = chunks_text(data.opts.virt_text)
+      ok(first:find('│', 1, true) ~= nil and first:find('x', 1, true) ~= nil, 'first table line keeps short cell')
+      ok(not first:find(vim.trim(long), 1, true), 'long cell wraps off the first overlay line')
+      extra_chunks = extra_chunks or (data.opts.virt_lines and data.opts.virt_lines[1])
+      ok(extra_chunks ~= nil, 'wrapped cell grows downward')
+      if extra_chunks then
+        local extra = chunks_text(extra_chunks)
+        ok(extra:find('│', 1, true) ~= nil, 'wrapped continuation has borders')
+        ok(extra:match '│%s+│' ~= nil, 'short cell padded on wrapped continuation')
+      end
+    end
+  else
+    ok(false, 'parse wrapping table')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| A | B |',
+    '| --- | --- |',
+    '| 1 | 2 |',
+  })
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local grew = false
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' and (m.opts.virt_lines or m.key:match '^tov:%d+:%d+:%d+$') then
+        grew = true
+      end
+    end
+    ok(not grew, 'narrow table does not wrap')
+  else
+    ok(false, 'parse narrow table')
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| Keep | Wrap this cell |',
+    '| --- | --- |',
+    '| x | ' .. ('word '):rep(30) .. '|',
+  })
+  plan = parse.parse(buf, win, 50)
+  if plan then
+    local cap = require('super-markdown.config').max_cols(require('super-markdown.util').content_width(buf, win))
+    local head
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' and m.row == 0 then
+        head = m
+        break
+      end
+    end
+    ok(head ~= nil, 'table overlay for max_width')
+    if head then
+      ok(tmod.display_width(head.opts.virt_text) <= cap, 'table overlay respects media.max_width')
+    end
+  else
+    ok(false, 'parse table max_width')
   end
 
   local mer = vim.fn.fnamemodify(fixture, ':h') .. '/mermaid.md'

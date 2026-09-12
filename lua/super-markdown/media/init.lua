@@ -103,14 +103,7 @@ function M.job_max_cols(job, buf, win)
   end
   local win_cols = util.content_width(buf, win)
   if job.kind == 'mermaid' or job.standalone then
-    local width = config.get().media.max_width
-    if width == nil then
-      width = 0.5
-    end
-    if width > 1 then
-      return math.max(1, math.min(win_cols, math.floor(width)))
-    end
-    return math.max(1, math.floor(win_cols * width))
+    return config.max_cols(win_cols)
   end
   return win_cols
 end

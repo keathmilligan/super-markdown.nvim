@@ -340,8 +340,9 @@ end
 ---@param ctx super_markdown.ParseCtx
 ---@param t integer
 ---@param tbl table
----@param win_width integer
-local function flush_one(ctx, t, tbl, win_width)
+---@param table_width integer
+---@param content_width integer
+local function flush_one(ctx, t, tbl, table_width, content_width)
   local ncols = 0
   local indent = 0
   local aligns = {}
@@ -372,8 +373,12 @@ local function flush_one(ctx, t, tbl, win_width)
   end
   -- 1 col slack so overlay / virt_lines do not wrap at the window edge.
   -- overhead: left border + per cell (pad + pad + right border).
-  local budget = math.max(ncols, win_width - indent - 1 - (1 + 3 * ncols))
+  local budget = math.max(ncols, table_width - indent - 1 - (1 + 3 * ncols))
   local widths = M.col_widths(naturals, budget)
+  -- Source wrap continuations follow the window, not media.max_width.
+  -- Using the table cap here stacked overlays on one visual line so only
+  -- the last wrapped cell line was visible.
+  local wrap_w = math.max(1, content_width)
   for _, row in ipairs(tbl.rows) do
     local hl = row.kind == 'head' and 'SuperMarkdownTableHead'
       or (row.stripe and 'SuperMarkdownTableRowAlt' or 'Normal')
@@ -387,13 +392,22 @@ local function flush_one(ctx, t, tbl, win_width)
       end
     end
     local line = row.line or ''
-    local src_wraps = math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / win_width))
+    local src_wraps = 1
+    if ctx.wrap ~= false then
+      src_wraps = math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / wrap_w))
+    end
     height = math.max(height, src_wraps)
     local function visual(vis)
       if row.kind == 'delim' then
         return delim_line(widths)
       end
       return data_line(wrapped, vis, widths, aligns, hl)
+    end
+    local function seg_end(vis)
+      if vis >= src_wraps then
+        return row.line_len
+      end
+      return M.byte_at_display(line, vis * wrap_w)
     end
     local first = visual(1)
     local virt = {}
@@ -403,7 +417,7 @@ local function flush_one(ctx, t, tbl, win_width)
       end
     end
     local opts = {
-      end_col = row.line_len,
+      end_col = seg_end(1),
       conceal = '',
       virt_text = first,
       virt_text_pos = 'overlay',
@@ -423,12 +437,13 @@ local function flush_one(ctx, t, tbl, win_width)
       hide_on_cursor = true,
     }
     for vis = 2, math.min(height, src_wraps) do
-      local col = M.byte_at_display(line, (vis - 1) * win_width)
       ctx.marks[#ctx.marks + 1] = {
         key = string.format('tov:%d:%d:%d', t, row.row, vis),
         row = row.row,
-        col = col,
+        col = M.byte_at_display(line, (vis - 1) * wrap_w),
         opts = {
+          end_col = seg_end(vis),
+          conceal = '',
           virt_text = with_indent(visual(vis), row.indent or 0),
           virt_text_pos = 'overlay',
           virt_text_hide = true,
@@ -441,9 +456,10 @@ end
 
 ---@param ctx super_markdown.ParseCtx
 function M.flush(ctx)
-  local win_width = config.max_cols(math.max(1, ctx.width or vim.o.columns))
+  local content_width = math.max(1, ctx.width or vim.o.columns)
+  local table_width = config.max_cols(content_width)
   for t, tbl in ipairs(ctx.tables) do
-    flush_one(ctx, t, tbl, win_width)
+    flush_one(ctx, t, tbl, table_width, content_width)
   end
 end
 

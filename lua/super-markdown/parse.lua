@@ -76,6 +76,7 @@ end
 ---@field pads table<string, { row: integer, col: integer, n: integer }>
 ---@field tables table[]
 ---@field width integer
+---@field wrap boolean
 local ctx ---@type super_markdown.ParseCtx|nil
 
 ---@param key string
@@ -856,7 +857,11 @@ function M.parse(buf, win, overscan)
   local marks = {} ---@type super_markdown.Mark[]
   local media = {}
   local code_ranges = {}
-  ctx = { buf = buf, marks = marks, cells = {}, pads = {}, tables = {}, width = width }
+  local wrap = vim.o.wrap
+  if win ~= 0 and vim.api.nvim_win_is_valid(win) then
+    wrap = vim.wo[win].wrap
+  end
+  ctx = { buf = buf, marks = marks, cells = {}, pads = {}, tables = {}, width = width, wrap = wrap }
 
   local function walk(langtree)
     local trees = langtree:trees()

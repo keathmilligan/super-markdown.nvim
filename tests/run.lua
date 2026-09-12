@@ -462,6 +462,52 @@ else
     ok(false, 'parse wrapping table')
   end
 
+  -- Source shorter than the window but longer than media.max_width must
+  -- grow with virt_lines. Overlaying at max_cols stacked on one visual
+  -- line, so only the last wrapped cell line was visible.
+  local old_wrap = vim.wo[win].wrap
+  vim.wo[win].wrap = true
+  vim.wo[win].number = false
+  vim.wo[win].relativenumber = false
+  vim.wo[win].signcolumn = 'no'
+  vim.o.columns = 120
+  pcall(vim.api.nvim_win_set_width, win, 120)
+  local prose =
+    'Long prose wraps inside this cell and the short cell grows with it so both rows stay a rectangle.'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '| Keep | Wrap this cell |',
+    '| --- | --- |',
+    '| short | ' .. prose .. ' |',
+  })
+  plan = parse.parse(buf, win, 50)
+  vim.wo[win].wrap = old_wrap
+  vim.o.columns = old_cols
+  if plan then
+    local data, cont
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^tov:' and m.row == 2 then
+        if m.key:match '^tov:%d+:%d+$' then
+          data = m
+        elseif m.key:match '^tov:%d+:%d+:%d+$' then
+          cont = true
+        end
+      end
+    end
+    ok(data ~= nil, 'fits-window wrapped table overlay')
+    if data then
+      local first = chunks_text(data.opts.virt_text)
+      ok(first:find('short', 1, true) ~= nil, 'fits-window first line keeps short cell')
+      ok(not first:find(prose, 1, true), 'fits-window prose wraps off the first overlay line')
+      ok(
+        data.opts.virt_lines ~= nil and #data.opts.virt_lines > 0,
+        'source that fits the window grows with virt_lines'
+      )
+      ok(not cont, 'source that fits the window has no wrap-continuation overlays')
+    end
+  else
+    ok(false, 'parse fits-window wrapping table')
+  end
+
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
     '| A | B |',
     '| --- | --- |',

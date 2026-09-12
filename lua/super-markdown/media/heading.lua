@@ -5,7 +5,7 @@ local util = require 'super-markdown.util'
 
 local M = {}
 
----gfm-hotview markdown.css font-size. 1em = terminal cell height.
+---GFM markdown.css font-size. 1em = terminal cell height.
 M.EM = { 2, 1.5, 1.25, 1, 0.875, 0.85 }
 
 ---@param level integer

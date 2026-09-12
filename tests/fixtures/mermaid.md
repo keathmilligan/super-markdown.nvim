@@ -18,7 +18,7 @@ flowchart TB
     UI --> K
   end
   subgraph Server
-    S[gfm-hotview]
+    S[server]
     R[goldmark + GFM]
     T[file tree]
     W[live reload SSE]
@@ -104,7 +104,7 @@ gantt
   dateFormat YYYY-MM-DD
   section Docs
   Write samples           :done, a1, 2026-08-30, 1d
-  Review in gfm-hotview   :active, a2, 2026-08-30, 2d
+  Review in preview       :active, a2, 2026-08-30, 2d
   section App
   Mermaid zoom overlay    :done, b1, 2026-08-30, 1d
 ```

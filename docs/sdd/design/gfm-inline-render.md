@@ -14,13 +14,11 @@ updated: 2026-09-09
 
 One Neovim plugin renders GFM in the source buffer. Tree-sitter describes the
 visible range; Lua applies extmarks for document chrome and the Kitty graphics
-protocol for images, Mermaid, and math. Visual tokens are copied from
-gfm-hotview, not from render-markdown’s rainbow headings or from snacks’
-kitchen-sink image module.
+protocol for images, Mermaid, and math. Visual tokens follow GitHub markdown,
+not render-markdown’s rainbow headings or snacks’ kitchen-sink image module.
 
-The editor remains the editor: `gfm-hotview` is still the place to get a
-browser-faithful page. This plugin’s job is to make the buffer *read* like
-that page without leaving Neovim and without paying startup or Chromium costs
+The editor remains the editor. This plugin’s job is to make the buffer *read*
+like GFM without leaving Neovim and without paying startup or Chromium costs
 on every keystroke.
 
 ## Current setup
@@ -56,8 +54,8 @@ all marks to hide the cursor line. snacks walks Tree-sitter again for image
 nodes. A combined plugin can do one walk and one mark set.
 
 **Visual mismatch.** render-markdown’s default heading icons and per-level
-backgrounds do not resemble gfm-hotview (GitHub-like weight, muted h6, border
-under h1/h2). Callouts are generic; gfm-hotview implements GitHub alerts with
+backgrounds do not resemble GFM (GitHub-like weight, muted h6, border
+under h1/h2). Callouts are generic; GFM implements GitHub alerts with
 specific colors and titles.
 
 ## Alternative rendering methods
@@ -68,11 +66,11 @@ These were considered. Only the first plus Kitty graphics is in scope.
 | --- | --- |
 | In-buffer extmarks + conceal | **Chosen for chrome.** The only way to keep editing the source. Neovim cannot grow heading font size; we approximate with weight, color, and underlines. |
 | Kitty graphics protocol | **Chosen for media.** Known to work on Ghostty. WezTerm lacks inline placeholders; Zellij cannot pass through. |
-| Browser / webview preview | Rejected. That is gfm-hotview. A second Chrome is the opposite of lighter. |
+| Browser / webview preview | Rejected. A second Chrome is the opposite of lighter. |
 | Separate “rendered” buffer (glow-style) | Rejected. Splits source from view; worse for editing. |
 | Rasterize the whole page to an image | Rejected. Uneditable and slower than Mermaid-via-Chromium. |
 | Tree-sitter highlights only | Rejected. No tables, alerts, images, or diagrams. |
-| Sixel / chafa half-blocks | Fallback only if graphics protocol is missing; quality is too far from gfm-hotview to be the default. |
+| Sixel / chafa half-blocks | Fallback only if graphics protocol is missing; quality is too far from GFM to be the default. |
 
 Mermaid-specific options:
 
@@ -80,9 +78,9 @@ Mermaid-specific options:
 | --- | --- |
 | `mmdc` + Chromium per diagram (today) | Rejected. Too slow and too much RAM. |
 | Long-lived Chromium worker | Rejected. No Chromium fallback. |
-| mermaid.js `render()` → SVG → `rsvg-convert` | **Chosen.** Same library gfm-hotview vendors. `htmlLabels: false` so labels stay SVG. Theme `default` / `dark` to match gfm-hotview, not snacks’ `neutral`. On failure, log an error and leave the fence as source. |
+| mermaid.js `render()` → SVG → `rsvg-convert` | **Chosen.** `htmlLabels: false` so labels stay SVG. Theme `default` / `dark` to match GitHub, not snacks’ `neutral`. On failure, log an error and leave the fence as source. |
 | Kroki / mermaid.ink | Rejected. Network, not offline. |
-| ASCII/unicode diagrams | Rejected. Does not match gfm-hotview. |
+| ASCII/unicode diagrams | Rejected. Does not match GFM. |
 
 Math-specific options:
 
@@ -219,9 +217,9 @@ reuses the cache.
 
 ## Appearance contract
 
-Source of truth: `gfm-hotview/web/assets/app.css` (`:root` / `html[data-theme="dark"]`)
-and `markdown.css`. Terminal approximations cannot match `font-size: 2em`;
-they must match color, weight, borders, and structure.
+Source of truth: GitHub markdown light/dark tokens and `markdown.css`.
+Terminal approximations cannot match `font-size: 2em`; they must match color,
+weight, borders, and structure.
 
 ### Tokens
 
@@ -244,12 +242,12 @@ Alert title/border colors (light / dark):
 | WARNING | `#9a6700` | `#d29922` |
 | CAUTION | `#cf222e` | `#f85149` |
 
-Titles: Note, Tip, Important, Warning, Caution — same as gfm-hotview, not
+Titles: Note, Tip, Important, Warning, Caution — same as GitHub, not
 the raw `[!NOTE]` marker.
 
 ### Element mapping
 
-| gfm-hotview | In-buffer rendering |
+| GFM | In-buffer rendering |
 | --- | --- |
 | h1/h2 with bottom border | Conceal `#`, bold fg, underline or a virt-line of border color |
 | h3–h5 weight 600 | Conceal `#`, bold; no rainbow backgrounds |
@@ -268,22 +266,18 @@ the raw `[!NOTE]` marker.
 | Images | Scaled to window width (gfm `max-width: 100%`) |
 | Mermaid | Converted diagram, transparent page, theme `default` or `dark` |
 | Math | TeX → SVG image (MathJax lite adaptor) |
-| Frontmatter | Dimmed, still editable (gfm-hotview strips it for HTML; the editor must not) |
+| Frontmatter | Dimmed, still editable (HTML previews often strip it; the editor must not) |
 
 `Normal` for the buffer stays on the active colorscheme (tokyonight in this
 setup) so line numbers, statusline, and cursorline do not become a second
 theme. Document elements use the table above. Do not restyle `Normal` to
 `--gv-bg` / `--gv-fg`.
 
-Code syntax uses the editor highlighter on purpose. Overlaying gfm-hotview’s
-Chroma GitHub CSS would fight the colorscheme and cost a second highlight
+Code syntax uses the editor highlighter on purpose. Overlaying GitHub’s
+Chroma CSS would fight the colorscheme and cost a second highlight
 pass. The frame (background, padding, language tag) is what reads as GFM.
 
 ## Mermaid helper
-
-gfm-hotview does not rasterize Mermaid on the server. It ships `mermaid.min.js`
-and runs `mermaid.initialize({ startOnLoad: false, theme })` then
-`mermaid.run()` in the browser.
 
 Neovim has no DOM, so the helper is a small Node script the plugin spawns
 (or keeps). It should:
@@ -300,12 +294,11 @@ that needs a DOM), log an error and leave the fence as source. There is no
 `mmdc` or Chromium fallback.
 
 Do not take a dependency on unproven npm wrappers as a hard requirement.
-The helper is a few dozen lines around `mermaid` itself — the same library
-gfm-hotview already vendors.
+The helper is a few dozen lines around `mermaid` itself.
 
 ## Math helper
 
-KaTeX (used by gfm-hotview in the browser) only emits HTML or MathML.
+KaTeX only emits HTML or MathML.
 Without a browser those cannot become a Kitty image. The helper therefore
 uses MathJax’s lite adaptor: TeX in, SVG out, then `rsvg-convert`. Inline
 math occupies the source line; display math (`$$`) gets virtual lines like
@@ -322,7 +315,7 @@ inline images reflow with the buffer. Placement must:
 - Allocate unicode placeholder cells so scrolling and folds keep the image
   attached to the fence or `![]()` line.
 - Size from terminal cell pixel metrics (`TIOCGWINSZ` / `ioctl`, as snacks
-  does) so the image width tracks the window, capped like gfm-hotview’s
+  does) so the image width tracks the window, capped like GitHub’s
   `max-width: 100%`.
 - Transmit by filename locally; transmit bytes over SSH if that environment
   is detected later (v1 can document local-only).
@@ -333,12 +326,11 @@ health and skip images.
 ## Decisions
 
 - **One plugin, markdown only.** Do not become another snacks.
-- **Tree-sitter, not goldmark.** A Go sidecar sharing gfm-hotview’s parser
-  would match edge cases more closely but adds IPC and a binary. Tree-sitter
-  markdown is already in the user’s Neovim. Emoji shortcodes and GitHub
-  alerts are handled in Lua.
+- **Tree-sitter, not goldmark.** A Go sidecar would match edge cases more
+  closely but adds IPC and a binary. Tree-sitter markdown is already in the
+  user’s Neovim. Emoji shortcodes and GitHub alerts are handled in Lua.
 - **GFM chrome, editor `Normal` and code colors.** Document elements use
-  gfm-hotview tokens. `Normal` stays on the colorscheme. No second highlighter.
+  GitHub tokens. `Normal` stays on the colorscheme. No second highlighter.
 - **Conceal first, virt-text second.** Cheaper anti-conceal.
 - **`rsvg-convert` over magick** for SVG. magick is fallback, not default.
 - **MathJax SVG, not LaTeX or KaTeX HTML.** KaTeX cannot emit SVG without a
@@ -361,7 +353,7 @@ health and skip images.
 - Kitty images and extmark virt-lines interact badly with `wrap`,
   `colorcolumn`, and diff mode. Skip render in diff; keep images to block
   elements.
-- gfm-hotview page background will not fill the Neovim window. That is
+- GitHub page background will not fill the Neovim window. That is
   intentional: `Normal` stays on the editor colorscheme.
 - A Node helper is an extra runtime. The user already has Node. Document it;
   health-check it. Do not use the existing `mmdc` install.
@@ -369,8 +361,8 @@ health and skip images.
 ## Visuals
 
 The architecture diagrams above are the design visuals. There is no
-pixel-target mock: implementers should open gfm-hotview on `samples/` and
-compare tokens, not clone a screenshot.
+pixel-target mock: implementers should compare tokens against GitHub
+markdown, not clone a screenshot.
 
 ## Change history
 

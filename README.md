@@ -1,11 +1,11 @@
 # super-markdown.nvim
 
 Inline GitHub-Flavored Markdown rendering for Neovim. Document chrome follows
-[gfm-hotview](https://github.com/keathmilligan/gfm-hotview) tokens; images and
-Mermaid use the Kitty graphics protocol (Ghostty/Kitty).
+GitHub light/dark tokens; images and Mermaid use the Kitty graphics protocol
+(Ghostty/Kitty).
 
 This plugin is meant to replace `render-markdown.nvim` plus snacks’ image
-module. `gfm-hotview` remains the browser-accurate preview.
+module.
 
 ## Requirements
 
@@ -51,12 +51,12 @@ tables, images, Mermaid, and math in one buffer.
 
 ## Appearance
 
-Markdown **elements** use gfm-hotview light/dark tokens (headings, alerts,
+Markdown **elements** use GitHub light/dark tokens (headings, alerts,
 quotes, tables, code frames, links). `Normal` stays on your colorscheme. Fenced
 code **syntax** stays with Tree-sitter / the editor highlighter.
 
 GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`)
-use the same titles and colors as gfm-hotview.
+use GitHub’s titles and colors.
 
 Mermaid is `mermaid.render()` → SVG → `rsvg-convert`. On failure the plugin
 logs an error and leaves the fence as source. There is no Chromium fallback.

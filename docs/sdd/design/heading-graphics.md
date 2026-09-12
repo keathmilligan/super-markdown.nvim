@@ -19,11 +19,11 @@ Focused headings stay source, with the colorscheme’s markdown highlighter.
 ## Analysis
 
 Neovim extmarks cannot change font size. The current mapping (conceal `#`,
-bold, h1/h2 virt-line rule) matches gfm-hotview **color and structure**, not
+bold, h1/h2 virt-line rule) matches GFM **color and structure**, not
 scale. That was an explicit v1 compromise
 ([gfm-inline-render design](./gfm-inline-render.md)).
 
-gfm-hotview `markdown.css`:
+GitHub `markdown.css`:
 
 | Level | Size | Extra |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ stateDiagram-v2
 ```
 
 On focus, skip `SuperMarkdownH*` so `@markup.heading` from the highlighter
-is visible. Unfocused graphics use gfm-hotview tokens, not those groups.
+is visible. Unfocused graphics use GFM tokens, not those groups.
 
 Heading text for the SVG is the visible characters: ATX hashes and setext
 underline stripped; inline markers stripped; link labels kept. Word-wrap at
@@ -101,7 +101,7 @@ a media job; keep today’s heading chrome.
 ## Visuals
 
 The state diagram above is the interaction model. Sizes come from
-gfm-hotview CSS, not a mock.
+GitHub markdown CSS, not a mock.
 
 ## Change history
 

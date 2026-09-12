@@ -9,7 +9,7 @@ link on click; use the expand button to zoom instead.
 
 ## SVG
 
-![gfm-hotview logo](images/logo.svg)
+![Logo](images/logo.svg)
 
 The logo is an SVG next to this page (`samples/images/logo.svg`).
 

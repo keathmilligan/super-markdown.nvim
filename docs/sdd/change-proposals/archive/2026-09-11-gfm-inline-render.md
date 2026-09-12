@@ -31,9 +31,7 @@ and fight the editor:
   because the LaTeX path is too heavy.
 
 The two plugins each walk Tree-sitter and manage their own marks, so a
-markdown buffer pays twice. Neither looks like
-[gfm-hotview](https://github.com/keathmilligan/gfm-hotview), which is the
-visual reference for GFM in this workspace.
+markdown buffer pays twice. Neither looks like GitHub-Flavored Markdown.
 
 `super-markdown.nvim` should be a single, markdown-only plugin that renders
 GFM inline, shows images and diagrams in-buffer, and stays cheap enough that
@@ -42,9 +40,8 @@ opening a note is not a hitch.
 ### Requirements
 
 - Render GitHub-Flavored Markdown **inline in the markdown buffer** (conceal +
-  extmarks), not in a browser or a second preview window. `gfm-hotview`
-  remains the pixel-accurate preview.
-- Appearance SHALL follow gfm-hotview document chrome: GitHub light/dark
+  extmarks), not in a browser or a second preview window.
+- Appearance SHALL follow GFM document chrome: GitHub light/dark
   tokens, h1/h2 underlines, GitHub alerts, tables, task lists, blockquotes,
   fenced code frames, horizontal rules, links, strikethrough, footnotes, and
   emoji shortcodes. See the [design](../design/gfm-inline-render.md).
@@ -70,12 +67,12 @@ opening a note is not a hitch.
 ### Scope
 
 - In: markdown filetype only; GFM document chrome; inline images; Mermaid;
-  optional TeX math; gfm-hotview color tokens; health checks; tests against
-  gfm-hotview sample constructs.
+  optional TeX math; GitHub color tokens; health checks; tests against
+  GFM sample constructs.
 - Out: browser/webview preview; image-file buffers as a full image viewer;
   PDF/video; HTML/TSX/Vue image scanning; Obsidian wiki links and extra
   callouts; org-indent; completions LSP; injected markdown in other
-  filetypes; rainbow heading palettes; replacing `gfm-hotview`.
+  filetypes; rainbow heading palettes.
 
 ### Open questions
 
@@ -92,7 +89,7 @@ cache miss, through `rsvg-convert` for SVG and a small Node helper for
 Mermaid (and MathJax SVG for math) — not ImageMagick and not a Chromium
 process per diagram.
 
-Style comes from gfm-hotview CSS tokens (`--gv-*` and GitHub alert colors),
+Style comes from GitHub CSS tokens (`--gv-*` and GitHub alert colors),
 mapped to highlight groups. Syntax highlighting inside fenced code stays with
 the editor’s Tree-sitter highlighter.
 
@@ -115,12 +112,12 @@ Details, trade-offs, and pipelines are in
 - [x] 1.2 Add commands: enable / disable / toggle / buffer-local toggle
 - [x] 1.3 Add `:checkhealth` for Tree-sitter markdown parsers, Ghostty/Kitty
       graphics, `rsvg-convert`, Node + mermaid, and optional math helper
-- [x] 1.4 Add a README describing install, requirements, and the gfm-hotview
+- [x] 1.4 Add a README describing install, requirements, and the GFM
       visual contract
 
 #### 2. Style
 
-- [x] 2.1 Encode gfm-hotview light/dark tokens as Lua palettes keyed off
+- [x] 2.1 Encode GitHub light/dark tokens as Lua palettes keyed off
       `vim.o.background`
 - [x] 2.2 Define highlight groups for headings, links, quotes, alerts, code
       frames, tables, rules, checkboxes, and footnotes
@@ -142,7 +139,7 @@ Details, trade-offs, and pipelines are in
 
 - [x] 4.1 Headings: conceal markers, bold title, h1/h2 underline
 - [x] 4.2 Lists, task-list checkboxes, and blockquotes
-- [x] 4.3 GitHub alerts (`> [!NOTE]` and the other four types) with gfm-hotview
+- [x] 4.3 GitHub alerts (`> [!NOTE]` and the other four types) with GitHub
       colors and titles
 - [x] 4.4 Fenced and inline code frames (language label; editor syntax colors)
 - [x] 4.5 Pipe tables, horizontal rules, links, strikethrough
@@ -158,7 +155,7 @@ Details, trade-offs, and pipelines are in
 - [x] 5.4 Resolve image paths relative to the markdown file
 - [x] 5.5 Convert and place only media whose source range intersects the
       viewport; cancel jobs that scroll out of view
-- [x] 5.6 Node helper: Mermaid → SVG with gfm-hotview themes (`default` /
+- [x] 5.6 Node helper: Mermaid → SVG with GitHub themes (`default` /
       `dark`), then `rsvg-convert`; log an error and keep the fence as source
       if `mermaid.render()` fails
 - [x] 5.7 Optional math helper for `$…$` / `$$…$$` → SVG → `rsvg-convert`
@@ -168,7 +165,7 @@ Details, trade-offs, and pipelines are in
 
 - [x] 6.1 Unit tests for palette, plan diff, path resolve, and cache keys
 - [x] 6.2 Buffer tests for each GFM construct using fixtures drawn from
-      gfm-hotview `samples/`
+      `samples/`
 - [x] 6.3 Health-gated tests for image placement and Mermaid conversion
 
 ## Change history

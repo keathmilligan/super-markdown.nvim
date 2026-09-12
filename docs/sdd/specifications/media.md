@@ -48,7 +48,7 @@ images SHALL fit the window width. Mermaid SHALL re-place on window resize.
 is outside the block, fence lines and source SHALL be hidden. When the cursor
 is in the block, source SHALL be visible.
 
-A parse failure SHALL show an in-buffer error similar to gfm-hotview. Only
+A parse failure SHALL show an in-buffer error. Only
 parse errors SHALL be cached until that diagram’s source changes. Converter
 noise and empty SVG SHALL NOT be cached as permanent failures.
 
@@ -69,9 +69,9 @@ protocol and `rsvg-convert` path as other SVG media. The graphic SHALL
 appear before the source. Background SHALL be transparent so editor
 `Normal` shows through.
 
-The graphic SHALL be sized like gfm-hotview (`h1` 2em, `h2` 1.5em, `h3`
+The graphic SHALL be sized like GitHub markdown (`h1` 2em, `h2` 1.5em, `h3`
 1.25em, `h4` 1em, `h5` 0.875em, `h6` 0.85em). `1em` is the terminal cell
-height. h1 and h2 SHALL include the gfm-hotview bottom border. Long
+height. h1 and h2 SHALL include the GFM bottom border. Long
 headings SHALL wrap to the window content width.
 
 The graphic SHALL show the heading’s visible text: ATX hashes and setext

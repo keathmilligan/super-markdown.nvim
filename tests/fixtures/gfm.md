@@ -5,7 +5,7 @@ Heading anchors appear on hover. This page covers everyday GitHub-Flavored Markd
 ## Emphasis and text
 
 **Bold**, *italic*, ***both***, and ~~strikethrough~~. Inline `code` uses a
-monospace face. Autolinks work: https://github.com/keathmilligan/gfm-hotview
+monospace face. Autolinks work: https://github.com/keathmilligan/super-markdown.nvim
 
 Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
 

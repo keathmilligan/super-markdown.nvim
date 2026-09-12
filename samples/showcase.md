@@ -5,8 +5,7 @@ title: super-markdown.nvim showcase
 # super-markdown.nvim showcase
 
 Open this file in Neovim with the plugin enabled. It exercises every in-buffer
-feature. Compare the same tree in [gfm-hotview](https://github.com/keathmilligan/gfm-hotview)
-if you want the browser-accurate page.
+feature.
 
 Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
 
@@ -82,7 +81,7 @@ A footnote looks like this.[^sample]
 > Mermaid uses `mermaid.render()` only. There is no Chromium fallback.
 
 > [!WARNING]
-> Frontmatter stays in the buffer (dimmed). gfm-hotview strips it for HTML.
+> Frontmatter stays in the buffer (dimmed). HTML previews often strip it.
 
 > [!CAUTION]
 > Kitty graphics need Ghostty or Kitty. `:checkhealth super-markdown` reports it.

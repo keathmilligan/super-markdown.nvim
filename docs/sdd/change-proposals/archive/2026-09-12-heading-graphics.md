@@ -17,8 +17,8 @@ updated: 2026-09-12
 ### Why
 
 Neovim cannot grow heading font size. The current chrome conceals `#` and
-paints bold gfm-hotview colors, so every heading is still one terminal row.
-gfm-hotview sizes h1 at `2em` down to h6 at `0.85em`. Kitty graphics already
+paints bold GFM colors, so every heading is still one terminal row.
+GitHub markdown sizes h1 at `2em` down to h6 at `0.85em`. Kitty graphics already
 render math and images at real pixel sizes; headings should use the same
 path so an unfocused heading reads at GFM scale.
 
@@ -28,12 +28,12 @@ the colorscheme’s markdown heading highlights must come back.
 ### Requirements
 
 - When the cursor is **not** on a heading, that heading SHALL render as a
-  Kitty graphic sized like gfm-hotview (`h1` 2em, `h2` 1.5em, `h3` 1.25em,
+  Kitty graphic sized like GitHub markdown (`h1` 2em, `h2` 1.5em, `h3` 1.25em,
   `h4` 1em, `h5` 0.875em, `h6` 0.85em muted). `1em` is the terminal cell
-  height. h1 and h2 SHALL include the bottom border from gfm-hotview.
+  height. h1 and h2 SHALL include the GFM bottom border.
 - The graphic SHALL show the heading’s visible text (no ATX `#` / setext
   underline). Background SHALL be transparent so editor `Normal` shows
-  through. Color SHALL follow gfm-hotview heading tokens (foreground; h6
+  through. Color SHALL follow GFM heading tokens (foreground; h6
   muted), not the colorscheme.
 - When the cursor is **on** the heading (any line of a setext heading), the
   graphic SHALL hide and the source SHALL show as normal markdown. Plugin
@@ -91,7 +91,7 @@ Details are in [design/heading-graphics.md](../design/heading-graphics.md).
 
 #### 2. Graphic
 
-- [x] 2.1 Generate SVG text at gfm-hotview sizes, weight 600, theme colors,
+- [x] 2.1 Generate SVG text at GFM sizes, weight 600, theme colors,
       h1/h2 bottom border; wrap to window pixel width
 - [x] 2.2 Rasterize with `rsvg-convert`; cache by text, level, theme, width
 - [x] 2.3 Place the PNG before the source; hide it on the focused heading

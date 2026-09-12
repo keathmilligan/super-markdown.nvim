@@ -1,6 +1,6 @@
 local M = {}
 
----gfm-hotview tokens from web/assets/app.css and markdown.css.
+---GitHub markdown light/dark tokens.
 M.light = {
   bg = '#ffffff',
   fg = '#1f2328',

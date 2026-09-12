@@ -19,7 +19,7 @@ active colorscheme.
 
 ### Tokens
 
-Markdown **elements** SHALL use gfm-hotview light/dark tokens. The plugin
+Markdown **elements** SHALL use GitHub light/dark tokens. The plugin
 SHALL NOT restyle `Normal`.
 
 | Token | Light | Dark |
@@ -38,9 +38,9 @@ Palette SHALL follow `vim.o.background`. Highlights SHALL reload on
 
 ### Headings
 
-Unfocused heading graphics SHALL use gfm-hotview heading tokens: document
+Unfocused heading graphics SHALL use GFM heading tokens: document
 foreground (not the colorscheme); h6 muted. h1 and h2 SHALL include the
-gfm-hotview bottom border.
+GFM bottom border.
 
 Focused headings SHALL use Tree-sitter / colorscheme markdown heading
 highlights, not plugin heading groups.

@@ -92,6 +92,14 @@ local added, removed = apply.diff_keys({ 'a', 'b' }, { 'b', 'c' })
 eq(added, { 'c' }, 'diff added')
 eq(removed, { 'a' }, 'diff removed')
 
+local media = require 'super-markdown.media'
+local active_media = media.active_marks({ { key = 'heading:2' } }, {
+  ['heading:1'] = { key = 'media:heading:1' },
+  ['heading:2'] = { key = 'media:heading:2' },
+})
+eq(#active_media, 1, 'stale media marks are filtered after edits move headings')
+eq(active_media[1].key, 'media:heading:2', 'shifted heading keeps only its current media mark')
+
 -- emoji
 local emoji = require 'super-markdown.emoji'
 eq(emoji.get 'rocket', '🚀', 'emoji rocket')
@@ -823,6 +831,33 @@ else
     local media = require 'super-markdown.media'
     local host, above = media.heading_host(buf, { row = 2, end_row = 4 })
     eq({ host, above }, { 1, false }, 'heading graphic hosts on the previous line like an image')
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      '# Editing',
+      '# Below',
+      'body',
+    })
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      apply.apply(buf, plan.marks, 0)
+      host, above = media.heading_host(buf, { row = 1, end_row = 2 })
+      eq(
+        { host, above },
+        { 0, false },
+        'following heading graphic stays below the heading being edited'
+      )
+    else
+      ok(false, 'parse consecutive headings')
+    end
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      '# Title One',
+      '',
+      'Setext',
+      '======',
+      'body',
+    })
+    plan = parse.parse(buf, win, 50)
     local hosted = vim.list_extend(vim.deepcopy(plan.marks), {
       {
         key = 'media:heading:0',

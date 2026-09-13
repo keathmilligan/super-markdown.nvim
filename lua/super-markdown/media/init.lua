@@ -17,6 +17,23 @@ local images = {}
 ---@type table<string, integer>
 local placements = {}
 
+---@param jobs table[]
+---@param marks table<string, super_markdown.Mark>|nil
+---@return super_markdown.Mark[]
+function M.active_marks(jobs, marks)
+  local live = {}
+  for _, job in ipairs(jobs) do
+    live[job.key] = true
+  end
+  local active = {}
+  for key, mark in pairs(marks or {}) do
+    if live[key] then
+      active[#active + 1] = mark
+    end
+  end
+  return active
+end
+
 local function pixel_width(win, max_cols)
   local sz = protocol.size()
   return math.floor(sz.cell_width * max_cols)
@@ -50,8 +67,16 @@ function M.heading_host(buf, job)
       return true
     end
     for _, m in ipairs(s.plan or {}) do
-      if m.row == row and (m.image_source or m.mermaid_source or m.mermaid_anchor or m.heading_source) then
-        return true
+      if m.row == row then
+        local in_block = m.block_range
+          and s.cursor_row >= m.block_range[1]
+          and s.cursor_row <= m.block_range[2]
+        if m.image_source and s.cursor_row ~= row then
+          return true
+        end
+        if (m.mermaid_source or m.mermaid_anchor or m.heading_source) and not in_block then
+          return true
+        end
       end
     end
     return false
@@ -395,6 +420,23 @@ function M.update(buf, win, jobs)
   end
   local s = apply.state(buf)
   s.media = jobs
+  local live = {} ---@type table<string, boolean>
+  for _, job in ipairs(jobs) do
+    live[job.key] = true
+  end
+  for key, handle in pairs(s.jobs) do
+    if not live[key] then
+      kill_job(handle)
+      s.jobs[key] = nil
+    end
+  end
+  if s.media_marks then
+    for key in pairs(s.media_marks) do
+      if not live[key] then
+        s.media_marks[key] = nil
+      end
+    end
+  end
   local parts = { tostring(util.content_width(buf, win)) }
   for _, job in ipairs(jobs) do
     parts[#parts + 1] = table.concat({
@@ -410,14 +452,12 @@ function M.update(buf, win, jobs)
   end
   s.media_sig = sig
   local markdown_file = vim.api.nvim_buf_get_name(buf)
-  local live = {} ---@type table<string, boolean>
 
   local function bucket_px(n)
     return math.max(32, math.floor(n / 32 + 0.5) * 32)
   end
 
   for _, job in ipairs(jobs) do
-    live[job.key] = true
     if job.kind == 'image' then
       local img_px = bucket_px(pixel_width(win, M.job_max_cols(job, buf, win)))
       local dest = image.cache_path(markdown_file, job.src, img_px)
@@ -453,20 +493,6 @@ function M.update(buf, win, jobs)
           cell_height = cell.cell_height,
         }, done)
       end)
-    end
-  end
-
-  for key, handle in pairs(s.jobs) do
-    if not live[key] then
-      kill_job(handle)
-      s.jobs[key] = nil
-    end
-  end
-  if s.media_marks then
-    for key in pairs(s.media_marks) do
-      if not live[key] then
-        s.media_marks[key] = nil
-      end
     end
   end
 end

@@ -103,7 +103,7 @@ local function render(buf)
   for _, m in ipairs(plan.marks) do
     marks[#marks + 1] = m
   end
-  for _, m in pairs(s.media_marks or {}) do
+  for _, m in ipairs(media.active_marks(plan.media, s.media_marks)) do
     marks[#marks + 1] = m
   end
   apply.apply(buf, marks, cursor[1] - 1)

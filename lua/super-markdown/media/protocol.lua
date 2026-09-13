@@ -18,7 +18,8 @@ setmetatable(positions, {
   end,
 })
 
-local cell ---@type { width: number, height: number, cols: number, rows: number }|nil
+local cell ---@type { width: number, height: number, cols: number, rows: number, cell_width: number, cell_height: number }|nil
+local winsize_type
 
 ---@return boolean
 function M.supported()
@@ -39,7 +40,7 @@ function M.size()
     return cell
   end
   local dw, dh = 9, 18
-  cell = {
+  local fallback = {
     width = vim.o.columns * dw,
     height = vim.o.lines * dh,
     cols = vim.o.columns,
@@ -49,29 +50,50 @@ function M.size()
   }
   pcall(function()
     local ffi = require 'ffi'
-    ffi.cdef [[
-      typedef struct {
+    if not winsize_type then
+      -- Declare once with a private type so another plugin cannot supply a
+      -- conflicting winsize layout.
+      winsize_type = ffi.typeof [[struct {
         unsigned short row;
         unsigned short col;
         unsigned short xpixel;
         unsigned short ypixel;
-      } winsize;
-      int ioctl(int, int, ...);
-    ]]
+      }]]
+      ffi.cdef 'int ioctl(int, unsigned long, ...);'
+    end
     local TIOCGWINSZ = vim.fn.has 'linux' == 1 and 0x5413 or 0x40087468
-    local sz = ffi.new 'winsize'
-    if ffi.C.ioctl(1, TIOCGWINSZ, sz) == 0 and sz.col > 0 and sz.row > 0 and sz.xpixel > 0 then
+    local sz = ffi.new(winsize_type)
+    local function query(fd)
+      return ffi.C.ioctl(fd, TIOCGWINSZ, sz) == 0
+        and sz.col > 0
+        and sz.row > 0
+        and sz.xpixel >= sz.col
+        and sz.ypixel >= sz.row
+    end
+    local found = query(1) or query(0) or query(2)
+    if not found then
+      -- Neovim's TUI/server split can redirect the standard descriptors.
+      local fd = vim.uv.fs_open('/dev/tty', 'r', 0)
+      if fd then
+        found = query(fd)
+        vim.uv.fs_close(fd)
+      end
+    end
+    if found then
       cell = {
         width = sz.xpixel,
         height = sz.ypixel,
         cols = sz.col,
         rows = sz.row,
-        cell_width = sz.xpixel / sz.col,
-        cell_height = sz.ypixel / sz.row,
+        -- Window pixel sizes can include a partial row/column. Cells are
+        -- whole pixels; including the remainder causes image letterboxing.
+        cell_width = math.floor(sz.xpixel / sz.col),
+        cell_height = math.floor(sz.ypixel / sz.row),
       }
     end
   end)
-  return cell
+  -- A failed query must not pin the guessed dimensions for the whole session.
+  return cell or fallback
 end
 
 vim.api.nvim_create_autocmd('VimResized', {
@@ -112,12 +134,16 @@ local function b64_file(path)
   return vim.trim(vim.fn.system({ 'base64', '-w0' }, path))
 end
 
-local next_img = 100
+-- IDs live in the terminal, not in Neovim. Avoid restarting at the same IDs
+-- after a crash/restart, when old virtual placements may still exist.
+local id_seed = vim.fn.sha256(tostring(vim.uv.hrtime()) .. ':' .. vim.fn.getpid())
+local next_img = tonumber(id_seed:sub(1, 6), 16)
 local next_place = 1
+local owned = {} ---@type table<integer, boolean>
 
 ---@return integer
 function M.next_image_id()
-  next_img = next_img + 1
+  next_img = next_img % 0xFFFFFF + 1
   return next_img
 end
 
@@ -130,6 +156,7 @@ end
 ---@param image_id integer
 ---@param path string
 function M.transmit(image_id, path)
+  owned[image_id] = true
   M.request {
     a = 't',
     t = 'f',
@@ -144,8 +171,6 @@ end
 ---@param placement_id integer
 ---@param cols integer
 ---@param rows integer
-local placed = {} ---@type table<integer, { i: integer, c: integer, r: integer }>
-
 function M.place(image_id, placement_id, cols, rows)
   M.request {
     a = 'p',
@@ -157,7 +182,6 @@ function M.place(image_id, placement_id, cols, rows)
     c = cols,
     r = rows,
   }
-  placed[placement_id] = { i = image_id, c = cols, r = rows }
 end
 
 ---Transmit a PNG and place it in one graphics command so the terminal
@@ -168,6 +192,7 @@ end
 ---@param cols integer
 ---@param rows integer
 function M.show(image_id, placement_id, path, cols, rows)
+  owned[image_id] = true
   M.request {
     a = 'T',
     t = 'f',
@@ -181,7 +206,6 @@ function M.show(image_id, placement_id, path, cols, rows)
     r = rows,
     data = b64_file(path),
   }
-  placed[placement_id] = { i = image_id, c = cols, r = rows }
 end
 
 ---@param image_id integer
@@ -190,9 +214,21 @@ function M.delete(image_id, placement_id)
   if placement_id then
     M.request { a = 'd', d = 'i', i = image_id, p = placement_id, q = 2 }
   else
-    M.request { a = 'd', d = 'i', i = image_id, q = 2 }
+    M.request { a = 'd', d = 'I', i = image_id, q = 2 }
+    owned[image_id] = nil
   end
 end
+
+function M.clear()
+  for id in pairs(owned) do
+    M.delete(id)
+  end
+end
+
+vim.api.nvim_create_autocmd('VimLeavePre', {
+  group = vim.api.nvim_create_augroup('super-markdown.graphics', { clear = true }),
+  callback = M.clear,
+})
 
 ---@param image_id integer
 ---@param placement_id integer

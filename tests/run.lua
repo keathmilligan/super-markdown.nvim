@@ -190,6 +190,7 @@ eq(heading_media.wrap('one two three', 5), { 'one', 'two', 'three' }, 'heading w
 local svg = heading_media.svg('Hello', 1, { max_cols = 40, cell_width = 9, cell_height = 18, fg = '#c9d1d9', border = '#3d444d' })
 ok(svg:find('font-size="36', 1, true) ~= nil, 'h1 svg font-size is 2em of cell height')
 ok(svg:find('font-weight="600"', 1, true) ~= nil, 'heading svg is weight 600')
+ok(svg:find('<text x="0"', 1, true) ~= nil, 'heading text is flush with the left edge')
 ok(svg:find('<line', 1, true) ~= nil, 'h1 svg includes a bottom rule')
 ok(
   heading_media.svg('Hi', 3, { max_cols = 40, cell_width = 9, cell_height = 18 }):find('<line', 1, true) == nil,

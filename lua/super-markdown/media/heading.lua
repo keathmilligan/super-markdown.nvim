@@ -172,7 +172,7 @@ function M.svg(text, level, opts)
   for i, ln in ipairs(lines) do
     local y = math.floor((i - 1) * fs + fs * 0.8) + shift
     parts[#parts + 1] = string.format(
-      '<text x="2" y="%d" font-family="Liberation Sans, Noto Sans, DejaVu Sans, sans-serif" font-size="%.2f" font-weight="600" fill="%s">%s</text>',
+      '<text x="0" y="%d" font-family="Liberation Sans, Noto Sans, DejaVu Sans, sans-serif" font-size="%.2f" font-weight="600" fill="%s">%s</text>',
       y,
       fs,
       fg,
@@ -201,7 +201,7 @@ end
 function M.cache_path(text, level, max_cols, cell)
   local theme = vim.o.background == 'light' and 'light' or 'dark'
   local payload = table.concat({
-    'v11-rule',
+    'v12-flush-left',
     tostring(level),
     tostring(max_cols),
     tostring(math.floor((cell.cell_width or 0) * 100)),

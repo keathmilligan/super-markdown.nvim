@@ -85,6 +85,7 @@ end
 ---@param buf integer
 local function render(buf)
   if not should_render(buf) then
+    media.clear(buf)
     apply.clear(buf)
     local win = util.buf_win(buf)
     set_win_opts(buf, win, false)
@@ -191,6 +192,7 @@ function M.attach(buf)
       attached[buf] = nil
       refreshes[buf] = nil
       restore_wins(buf)
+      media.clear(buf)
       apply.drop(buf)
     end,
   })
@@ -206,6 +208,7 @@ function M.set_buf(buf, enable)
     render(buf)
   else
     restore_wins(buf)
+    media.clear(buf)
     apply.clear(buf)
   end
 end
@@ -219,6 +222,7 @@ function M.set(enable)
         render(buf)
       else
         restore_wins(buf)
+        media.clear(buf)
         apply.clear(buf)
       end
     end

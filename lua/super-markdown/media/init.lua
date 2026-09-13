@@ -11,11 +11,19 @@ local util = require 'super-markdown.util'
 
 local M = {}
 
----@type table<string, { id: integer, file: string, sent: boolean }>
-local images = {}
-
----@type table<string, integer>
+-- Each buffer occurrence owns one image and one virtual placement. Neovim
+-- does not send underline colors for non-underlined placeholders, so terminals
+-- may choose any placement for an image; sharing one across sizes is ambiguous.
+---@type table<integer, table<string, { id: integer, pid: integer, file: string, cols: integer, rows: integer }>>
 local placements = {}
+
+---@param buf integer
+function M.clear(buf)
+  for _, img in pairs(placements[buf] or {}) do
+    protocol.delete(img.id)
+  end
+  placements[buf] = nil
+end
 
 ---@param jobs table[]
 ---@param marks table<string, super_markdown.Mark>|nil
@@ -68,9 +76,7 @@ function M.heading_host(buf, job)
     end
     for _, m in ipairs(s.plan or {}) do
       if m.row == row then
-        local in_block = m.block_range
-          and s.cursor_row >= m.block_range[1]
-          and s.cursor_row <= m.block_range[2]
+        local in_block = m.block_range and s.cursor_row >= m.block_range[1] and s.cursor_row <= m.block_range[2]
         if m.image_source and s.cursor_row ~= row then
           return true
         end
@@ -166,18 +172,24 @@ local function place_png(buf, win, job, file)
   else
     cols, rows = protocol.fit_cells(pw, ph, max_cols, max_rows)
   end
-  local img = images[file]
+  placements[buf] = placements[buf] or {}
+  local img = placements[buf][job.key]
+  if img and (img.file ~= file or img.cols ~= cols or img.rows ~= rows) then
+    protocol.delete(img.id)
+    img = nil
+  end
   if not img then
-    img = { id = protocol.next_image_id(), file = file }
-    images[file] = img
+    img = {
+      id = protocol.next_image_id(),
+      pid = protocol.next_placement_id(),
+      file = file,
+      cols = cols,
+      rows = rows,
+    }
+    placements[buf][job.key] = img
+    protocol.show(img.id, img.pid, file, cols, rows)
   end
-  local pid = placements[job.key]
-  if not pid then
-    pid = protocol.next_placement_id()
-    placements[job.key] = pid
-  end
-  protocol.show(img.id, pid, file, cols, rows)
-  local grid, hl = protocol.grid(img.id, pid, rows, cols)
+  local grid, hl = protocol.grid(img.id, img.pid, rows, cols)
   local s = apply.state(buf)
   local prefix = 'media:' .. job.key
   s.media_marks = s.media_marks or {}
@@ -293,7 +305,7 @@ local function place_mermaid_error(buf, job, err)
   end
   err = mermaid.format_error(err or 'mermaid.render() failed')
   local title = 'Syntax error in text'
-  if not (err:find('[Pp]arse') or err:find('[Ss]yntax') or err:find('unexpected') or err:find('line ')) then
+  if not (err:find '[Pp]arse' or err:find '[Ss]yntax' or err:find 'unexpected' or err:find 'line ') then
     title = 'Mermaid render failed'
   end
   local width = 72
@@ -424,6 +436,12 @@ function M.update(buf, win, jobs)
   for _, job in ipairs(jobs) do
     live[job.key] = true
   end
+  for key, img in pairs(placements[buf] or {}) do
+    if not live[key] then
+      protocol.delete(img.id)
+      placements[buf][key] = nil
+    end
+  end
   for key, handle in pairs(s.jobs) do
     if not live[key] then
       kill_job(handle)
@@ -437,13 +455,22 @@ function M.update(buf, win, jobs)
       end
     end
   end
-  local parts = { tostring(util.content_width(buf, win)) }
+  local cell = protocol.size()
+  local parts = {
+    tostring(util.content_width(buf, win)),
+    tostring(cell.cell_width),
+    tostring(cell.cell_height),
+    vim.o.background,
+  }
   for _, job in ipairs(jobs) do
     parts[#parts + 1] = table.concat({
       job.key,
       job.kind,
       job.content or job.src or '',
       tostring(job.row),
+      tostring(job.level),
+      tostring(job.max_cols),
+      tostring(job.max_rows),
     }, '\0')
   end
   local sig = table.concat(parts, '\n')

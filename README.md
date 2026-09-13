@@ -1,11 +1,10 @@
 # super-markdown.nvim
 
-Inline GitHub-Flavored Markdown rendering for Neovim. Document chrome follows
-GitHub light/dark tokens; images and Mermaid use the Kitty graphics protocol
-(Ghostty/Kitty).
+Inline GitHub-Flavored Markdown rendering for Neovim.
 
-This plugin is meant to replace `render-markdown.nvim` plus snacks’ image
-module.
+- Graphically-rendered headings, images, mermaid diagrams and math using Kitty Graphicsl Protocol
+- GitHub-style checklists, alerts, rendered tables and more
+- Fully-configurable - enable/disable rendering by element type
 
 ## Requirements
 
@@ -15,6 +14,10 @@ module.
 - [`rsvg-convert`](https://gitlab.gnome.org/GNOME/librsvg) for SVG / Mermaid / math
 - Node.js, then `npm install` in `scripts/` for Mermaid (and math)
 - ImageMagick `magick` only for JPEG/GIF/WebP
+
+### A note about tmux, Zellij, herdr, etc.
+
+If you use a multiplexer, it must also support Kitty graphics.
 
 ## Install
 

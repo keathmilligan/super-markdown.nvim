@@ -25,7 +25,7 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
 
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.
 
-###### Level 6 (muted)
+###### Level 6
 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.
 

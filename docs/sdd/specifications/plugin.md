@@ -1,14 +1,14 @@
 ---
 feature: plugin
 created: 2026-09-11
-updated: 2026-09-11
+updated: 2026-09-13
 ---
 
 # Plugin
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-11 |
+| 2026-09-11 | 2026-09-13 |
 
 ## Purpose
 
@@ -56,6 +56,30 @@ The plugin SHALL provide global and buffer-local enable, disable, and toggle.
 Rendering SHALL skip files larger than a configurable byte cap (default 1 MiB),
 windows in diff mode, and windows that are horizontally scrolled.
 
+### Configuration
+
+Render features SHALL be nested sections with `enabled` (default on):
+heading, code, quote, alert, list, checkbox, table, hr, frontmatter, link,
+codespan, strike, emphasis, emoji, and footnote. Heading SHALL also have
+`simple` (default false). Table SHALL have `max_width` (default 0.75 of
+window content width). Media SHALL keep `max_width` (default 0.5) for
+mermaid and standalone images, and SHALL include `image`, `mermaid`, and
+`math` (default on). `media.enabled` SHALL be a master switch for images,
+mermaid, math, and heading graphics.
+
+Width values `0–1` SHALL be a window-content fraction; values `>1` SHALL
+be columns.
+
+Setup with options SHALL merge those options onto defaults. Setup with no
+options SHALL keep the current configuration and SHALL NOT reset to
+defaults.
+
+#### Setup without options
+
+- GIVEN the user has already set custom options
+- WHEN setup is called with no options
+- THEN those custom options SHALL remain
+
 ### Health
 
 `:checkhealth super-markdown` SHALL report Neovim version, Tree-sitter
@@ -67,3 +91,4 @@ windows in diff mode, and windows that are horizontally scrolled.
 | Date | Change |
 | --- | --- |
 | 2026-09-11 | Initial spec from gfm-inline-render |
+| 2026-09-13 | Nested feature config; table vs media width; setup() keeps user config |

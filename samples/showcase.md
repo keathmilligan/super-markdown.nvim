@@ -114,7 +114,6 @@ PNG passthrough:
 
 SVG via rsvg-convert:
 
-![Logo](images/logo.svg)
 
 ![Landscape](images/landscape.svg)
 

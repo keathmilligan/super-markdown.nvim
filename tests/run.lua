@@ -32,7 +32,11 @@ eq(style.palette().accent, '#0969da', 'light accent token')
 eq(style.palette().alert.CAUTION, '#cf222e', 'light caution alert')
 style.apply()
 ok(vim.fn.hlexists 'SuperMarkdownH1' == 1, 'H1 highlight defined')
+ok(vim.fn.hlexists 'SuperMarkdownHeadingSimple' == 1, 'simple heading highlight defined')
 ok(vim.fn.hlexists 'SuperMarkdownAlertNoteTitle' == 1, 'alert title highlight')
+local simple_hl = vim.api.nvim_get_hl(0, { name = 'SuperMarkdownHeadingSimple', link = false })
+ok(simple_hl.bold == true, 'simple heading is bold')
+ok(simple_hl.fg == nil, 'simple heading does not set fg')
 
 vim.o.background = 'dark'
 vim.api.nvim_set_hl(0, 'Normal', { fg = '#c9d1d9', bg = '#0d1117' })
@@ -114,8 +118,18 @@ eq(wrapped_hl[1], { { 'hello', 'Normal' } }, 'wrap keeps first-line highlight')
 eq(wrapped_hl[2], { { 'world', 'SuperMarkdownStrong' } }, 'wrap keeps second-line highlight')
 
 local cfg = require 'super-markdown.config'
-eq(cfg.max_cols(80), 40, 'max_width 0.5 of 80 cols')
+eq(cfg.max_cols(80), 40, 'media.max_width 0.5 of 80 cols')
+eq(cfg.table_cols(80), 60, 'table.max_width 0.75 of 80 cols')
 eq(cfg.max_cols(1), 1, 'max_cols at least 1')
+eq(cfg.get().media.max_width, 0.5, 'default media max_width')
+eq(cfg.get().table.max_width, 0.75, 'default table max_width')
+eq(cfg.get().media.image, true, 'default media.image')
+eq(cfg.get().heading.enabled, true, 'default heading enabled')
+eq(cfg.get().heading.simple, false, 'default heading simple off')
+eq(cfg.feature 'list', true, 'features default on')
+eq(cfg.heading_mode(), 'full', 'default heading mode is full')
+eq(cfg.resolve_cols(80, 0.5), 40, 'resolve_cols fraction')
+eq(cfg.resolve_cols(80, 20), 20, 'resolve_cols absolute columns')
 do
   local prev = cfg.get().media.max_width
   cfg.get().media.max_width = 20
@@ -125,6 +139,38 @@ do
   cfg.get().media.max_width = prev
   eq(abs, 20, 'absolute max_width is columns')
   eq(capped, 80, 'absolute max_width capped to window')
+end
+do
+  local prev = cfg.get().table.max_width
+  cfg.get().table.max_width = 20
+  local abs = cfg.table_cols(80)
+  cfg.get().table.max_width = prev
+  eq(abs, 20, 'absolute table.max_width is columns')
+end
+do
+  local orig = vim.deepcopy(cfg.get())
+  cfg.get().heading.enabled = false
+  eq(cfg.heading_mode(), 'off', 'heading.enabled false is off')
+  cfg.get().heading.enabled = true
+  cfg.get().heading.simple = true
+  eq(cfg.heading_mode(), 'simple', 'heading.simple is simple mode')
+  cfg.get().heading.enabled = false
+  eq(cfg.heading_mode(), 'off', 'enabled false wins over simple')
+  cfg.get().list.enabled = false
+  eq(cfg.feature 'list', false, 'feature off')
+  cfg.values = orig
+end
+do
+  local orig = vim.deepcopy(cfg.get())
+  cfg.setup { media = { max_width = 0.3 }, heading = { simple = true } }
+  eq(cfg.get().media.max_width, 0.3, 'setup merges opts')
+  eq(cfg.get().media.mermaid, true, 'setup keeps default mermaid')
+  eq(cfg.get().heading.simple, true, 'setup merges heading.simple')
+  eq(cfg.get().heading.enabled, true, 'setup keeps default heading.enabled')
+  cfg.setup()
+  eq(cfg.get().media.max_width, 0.3, 'setup() without opts keeps user config')
+  eq(cfg.get().heading.simple, true, 'setup() without opts keeps heading.simple')
+  cfg.values = orig
 end
 
 local heading_media = require 'super-markdown.media.heading'
@@ -462,8 +508,8 @@ else
     ok(false, 'parse wrapping table')
   end
 
-  -- Source shorter than the window but longer than media.max_width must
-  -- grow with virt_lines. Overlaying at max_cols stacked on one visual
+  -- Source shorter than the window but longer than table.max_width must
+  -- grow with virt_lines. Overlaying at table_cols stacked on one visual
   -- line, so only the last wrapped cell line was visible.
   local old_wrap = vim.wo[win].wrap
   vim.wo[win].wrap = true
@@ -533,7 +579,7 @@ else
   })
   plan = parse.parse(buf, win, 50)
   if plan then
-    local cap = require('super-markdown.config').max_cols(require('super-markdown.util').content_width(buf, win))
+    local cap = require('super-markdown.config').table_cols(require('super-markdown.util').content_width(buf, win))
     local head
     for _, m in ipairs(plan.marks) do
       if m.key:match '^tov:' and m.row == 0 then
@@ -543,7 +589,7 @@ else
     end
     ok(head ~= nil, 'table overlay for max_width')
     if head then
-      ok(tmod.display_width(head.opts.virt_text) <= cap, 'table overlay respects media.max_width')
+      ok(tmod.display_width(head.opts.virt_text) <= cap, 'table overlay respects table.max_width')
     end
   else
     ok(false, 'parse table max_width')
@@ -815,6 +861,198 @@ else
     ok(false, 'parse heading graphics')
   end
   heading_media.available = orig_avail
+
+  local function with_cfg(patch, fn)
+    local orig = vim.deepcopy(cfg.get())
+    cfg.values = vim.tbl_deep_extend('force', vim.deepcopy(orig), patch)
+    local ran, err = pcall(fn)
+    cfg.values = orig
+    if not ran then
+      error(err)
+    end
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '# Title One',
+    '',
+    'Setext',
+    '======',
+    '- item',
+    '- [ ] task',
+    '> quote',
+    '',
+    '> [!NOTE]',
+    '> note body',
+    '',
+    '```lua',
+    'print(1)',
+    '```',
+    '',
+    '```mermaid',
+    'flowchart LR',
+    '  A-->B',
+    '```',
+  })
+  pcall(vim.treesitter.start, buf, 'markdown')
+
+  with_cfg({ heading = { enabled = false } }, function()
+    heading_media.available = function()
+      return true
+    end
+    plan = parse.parse(buf, win, 50)
+    heading_media.available = orig_avail
+    if plan then
+      local hmarks, hjobs = 0, 0
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^h' then
+          hmarks = hmarks + 1
+        end
+      end
+      for _, job in ipairs(plan.media) do
+        if job.kind == 'heading' then
+          hjobs = hjobs + 1
+        end
+      end
+      eq(hmarks, 0, 'heading disabled emits no heading marks')
+      eq(hjobs, 0, 'heading disabled emits no heading jobs')
+    else
+      ok(false, 'parse heading disabled')
+    end
+  end)
+
+  with_cfg({ heading = { enabled = true, simple = true } }, function()
+    heading_media.available = function()
+      return true
+    end
+    plan = parse.parse(buf, win, 50)
+    heading_media.available = orig_avail
+    if plan then
+      local simple, hstar, rule, jobs, setext = 0, 0, 0, 0, 0
+      local hmark
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^hsimple:' then
+          simple = simple + 1
+          ok(m.opts.hl_group == 'SuperMarkdownHeadingSimple', 'simple heading uses bold-only group')
+          ok(m.hide_in_block == true, 'simple heading chrome hides when focused')
+        elseif m.key:match '^h:' then
+          hstar = hstar + 1
+        elseif m.key:match '^hmark:' then
+          hmark = m
+        elseif m.key:match '^hsetext:' then
+          setext = setext + 1
+        end
+        if m.opts.virt_lines then
+          rule = rule + 1
+        end
+      end
+      for _, job in ipairs(plan.media) do
+        if job.kind == 'heading' then
+          jobs = jobs + 1
+        end
+      end
+      ok(simple >= 2, 'simple mode marks ATX and setext titles')
+      ok(hmark and hmark.opts.conceal == '', 'simple mode conceals ATX hashes')
+      ok(setext >= 1, 'simple mode conceals setext underline')
+      eq(hstar, 0, 'simple mode does not use SuperMarkdownH*')
+      eq(jobs, 0, 'simple mode does not emit heading graphics')
+      eq(rule, 0, 'simple mode has no h1/h2 rule')
+    else
+      ok(false, 'parse heading simple')
+    end
+  end)
+
+  with_cfg({ list = { enabled = false } }, function()
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      local n = 0
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^li:' then
+          n = n + 1
+        end
+      end
+      eq(n, 0, 'list disabled emits no bullet marks')
+    else
+      ok(false, 'parse list disabled')
+    end
+  end)
+
+  with_cfg({ alert = { enabled = false } }, function()
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      local alerts, quotes = 0, 0
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^alert:' then
+          alerts = alerts + 1
+        elseif m.key:match '^q:' then
+          quotes = quotes + 1
+        end
+      end
+      eq(alerts, 0, 'alert disabled emits no alert titles')
+      ok(quotes > 0, 'alert disabled falls back to quote chrome')
+    else
+      ok(false, 'parse alert disabled')
+    end
+  end)
+
+  with_cfg({ quote = { enabled = false } }, function()
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      local alerts, plain = 0, 0
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^alert:' then
+          alerts = alerts + 1
+        elseif m.key:match '^q:' and m.row == 6 then
+          plain = plain + 1
+        end
+      end
+      ok(alerts > 0, 'quote disabled still renders alerts')
+      eq(plain, 0, 'quote disabled skips plain quotes')
+    else
+      ok(false, 'parse quote disabled')
+    end
+  end)
+
+  with_cfg({ media = { mermaid = false } }, function()
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      local mmd, cfence = 0, 0
+      for _, job in ipairs(plan.media) do
+        if job.kind == 'mermaid' then
+          mmd = mmd + 1
+        end
+      end
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^cfence:' and m.row == 15 then
+          cfence = cfence + 1
+        end
+      end
+      eq(mmd, 0, 'mermaid off emits no mermaid jobs')
+      ok(cfence > 0, 'mermaid off uses code chrome')
+    else
+      ok(false, 'parse mermaid off')
+    end
+  end)
+
+  with_cfg({ code = { enabled = false } }, function()
+    plan = parse.parse(buf, win, 50)
+    if plan then
+      local mmd, cfence = 0, 0
+      for _, job in ipairs(plan.media) do
+        if job.kind == 'mermaid' then
+          mmd = mmd + 1
+        end
+      end
+      for _, m in ipairs(plan.marks) do
+        if m.key:match '^cfence:' then
+          cfence = cfence + 1
+        end
+      end
+      ok(mmd > 0, 'code off still emits mermaid jobs')
+      eq(cfence, 0, 'code off emits no fence chrome')
+    else
+      ok(false, 'parse code off mermaid on')
+    end
+  end)
 end
 
 -- images

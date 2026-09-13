@@ -1,16 +1,16 @@
 ---
 id: improved-configuration
-status: proposal
-features: [plugin, render, media]
+status: accepted
+features: [plugin, render, media, style]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # Improved configuration
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-12 | 2026-09-12 |
+| 2026-09-12 | 2026-09-13 |
 
 ## What
 
@@ -33,7 +33,8 @@ between full GFM graphics and raw source.
   - **simple** (`enabled = true`, `simple = true`): conceal ATX `#` and
     setext underlines; show the title as bold text in the colorscheme /
     Tree-sitter heading color; no graphic, no `SuperMarkdownH*`, no h1/h2
-    rule. `enabled = false` wins over `simple`.
+    rule. `enabled = false` wins over `simple`. In this mode, the heading
+    is *not* rendered graphically - it is just normal text.
 - Cursor-line source editing SHALL still apply to enabled and simple
   headings (chrome hides, markdown source is visible).
 - `media.enabled` SHALL remain a master switch for images, mermaid, math,
@@ -52,9 +53,7 @@ between full GFM graphics and raw source.
 
 ### Open questions
 
-- Split into two changes? (1) config + table width + feature skips in
-  parse only; (2) heading simple mode. That keeps media/heading graphics
-  off the first diff.
+- None. Implement as one change (user request).
 
 ## How
 
@@ -71,44 +70,45 @@ changes to attach, init, util, or media placement. Details:
 - `plugin` (existing) — configuration surface
 - `render` (existing) — feature flags, heading modes, table width
 - `media` (existing) — image flag, tables no longer share `media.max_width`
+- `style` (existing) — simple heading bold without GFM tokens
 
 ### Plan
 
 #### 1. Config only
 
-- [ ] 1.1 Add feature sections with `enabled = true`; `heading.simple`
+- [x] 1.1 Add feature sections with `enabled = true`; `heading.simple`
       boolean (default false)
-- [ ] 1.2 `table.max_width = 0.75`; keep `media.max_width = 0.5`; add
+- [x] 1.2 `table.max_width = 0.75`; keep `media.max_width = 0.5`; add
       `media.image = true`
-- [ ] 1.3 `resolve_cols` / `table_cols`; `max_cols` stays on media width
-- [ ] 1.4 Helpers: heading mode and whether a feature is on
-- [ ] 1.5 `setup(opts)` still merges opts; `setup()` with no args MUST keep
+- [x] 1.3 `resolve_cols` / `table_cols`; `max_cols` stays on media width
+- [x] 1.4 Helpers: heading mode and whether a feature is on
+- [x] 1.5 `setup(opts)` still merges opts; `setup()` with no args MUST keep
       current values (do not reset to defaults)
 
 #### 2. Parse gates (no media/attach edits)
 
-- [ ] 2.1 Skip parse marks when the matching feature is off
-- [ ] 2.2 Quote vs alert: disabled alert falls back to quote chrome;
+- [x] 2.1 Skip parse marks when the matching feature is off
+- [x] 2.2 Quote vs alert: disabled alert falls back to quote chrome;
       disabled quote still allows alerts
-- [ ] 2.3 Skip mermaid/math/image *jobs in parse* when those flags are off;
+- [x] 2.3 Skip mermaid/math/image *jobs in parse* when those flags are off;
       mermaid off leaves fences to code chrome. Do not edit
       `media/init.lua`.
 
 #### 3. Headings (parse only)
 
-- [ ] 3.1 `disabled`: no heading marks or media jobs
-- [ ] 3.2 `simple`: conceal markers; bold colorscheme heading text; no
+- [x] 3.1 `disabled`: no heading marks or media jobs
+- [x] 3.2 `simple`: conceal markers; bold colorscheme heading text; no
       graphic / plugin heading groups / h1-h2 rule
-- [ ] 3.3 `enabled`: unchanged full path, including graphics fallback
+- [x] 3.3 `enabled`: unchanged full path, including graphics fallback
 
 #### 4. Table width
 
-- [ ] 4.1 Size tables with `table.max_width` in `table.lua` only
+- [x] 4.1 Size tables with `table.max_width` in `table.lua` only
 
 #### 5. Docs and tests
 
-- [ ] 5.1 Update README configuration sample
-- [ ] 5.2 Tests: defaults, table 75% vs media 50%, heading modes, a feature
+- [x] 5.1 Update README configuration sample
+- [x] 5.2 Tests: defaults, table 75% vs media 50%, heading modes, a feature
       off emits no marks, setup() without opts keeps user config
 
 ## Change history
@@ -120,3 +120,6 @@ changes to attach, init, util, or media placement. Details:
 | 2026-09-12 | Heading `simple` is its own boolean; `enabled` stays boolean |
 | 2026-09-12 | setup() without opts no longer wipes user config on attach |
 | 2026-09-12 | Reverted implementation (image/heading regressions); proposal reset |
+| 2026-09-13 | Implementing as one change |
+| 2026-09-13 | Implemented parse-only; simple heading bold group in style.lua |
+| 2026-09-13 | Accepted; specs updated |

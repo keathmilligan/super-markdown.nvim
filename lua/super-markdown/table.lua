@@ -375,7 +375,7 @@ local function flush_one(ctx, t, tbl, table_width, content_width)
   -- overhead: left border + per cell (pad + pad + right border).
   local budget = math.max(ncols, table_width - indent - 1 - (1 + 3 * ncols))
   local widths = M.col_widths(naturals, budget)
-  -- Source wrap continuations follow the window, not media.max_width.
+  -- Source wrap continuations follow the window, not table.max_width.
   -- Using the table cap here stacked overlays on one visual line so only
   -- the last wrapped cell line was visible.
   local wrap_w = math.max(1, content_width)
@@ -457,7 +457,7 @@ end
 ---@param ctx super_markdown.ParseCtx
 function M.flush(ctx)
   local content_width = math.max(1, ctx.width or vim.o.columns)
-  local table_width = config.max_cols(content_width)
+  local table_width = config.table_cols(content_width)
   for t, tbl in ipairs(ctx.tables) do
     flush_one(ctx, t, tbl, table_width, content_width)
   end

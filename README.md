@@ -66,16 +66,47 @@ backend without a browser). Skip if the helper is not installed.
 
 ## Configuration
 
+Each render feature is a nested section with `enabled` (default on). Width
+values `0–1` are a window fraction; `>1` are columns.
+
 ```lua
 require('super-markdown').setup {
   debounce_ms = { insert = 120, normal = 40 },
   max_bytes = 1024 * 1024,
+  heading = {
+    enabled = true,
+    -- Conceal `#` / setext underline; bold colorscheme title; no graphic.
+    simple = false,
+  },
+  code = { enabled = true },
+  quote = { enabled = true },
+  alert = { enabled = true },
+  list = { enabled = true },
+  checkbox = { enabled = true },
+  table = {
+    enabled = true,
+    max_width = 0.75,
+  },
+  hr = { enabled = true },
+  frontmatter = { enabled = true },
+  link = { enabled = true },
+  codespan = { enabled = true },
+  strike = { enabled = true },
+  emphasis = { enabled = true },
+  emoji = { enabled = true },
+  footnote = { enabled = true },
   media = {
     enabled = true,
+    image = true,
     mermaid = true,
     math = true,
-    -- Mermaid, standalone images, and tables. 0–1 = window fraction; >1 = columns.
+    -- Mermaid and standalone images.
     max_width = 0.5,
   },
 }
 ```
+
+`heading.enabled = false` skips heading chrome and heading graphics.
+`heading.simple = true` (with `enabled = true`) keeps the title as bold
+text in the colorscheme / Tree-sitter heading color. `media.enabled` is
+the master switch for images, mermaid, math, and heading graphics.

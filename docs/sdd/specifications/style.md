@@ -1,14 +1,14 @@
 ---
 feature: style
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # Style
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-12 |
+| 2026-09-11 | 2026-09-13 |
 
 ## Purpose
 
@@ -48,6 +48,10 @@ highlights, not plugin heading groups.
 When graphics are unavailable, heading chrome SHALL use document
 foreground, bold; h6 muted; h1 and h2 MAY show a border-colored underline.
 
+Simple headings SHALL combine the colorscheme / Tree-sitter heading color
+with plugin bold. They SHALL NOT restyle `Normal` or apply GFM heading
+tokens.
+
 ### Code frames
 
 Fenced code background SHALL be derived from the editor `Normal` background:
@@ -70,3 +74,4 @@ SHALL be Note, Tip, Important, Warning, and Caution.
 | --- | --- |
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-12 | Unfocused heading tokens vs focused colorscheme highlights |
+| 2026-09-13 | Simple headings: colorscheme color plus plugin bold |

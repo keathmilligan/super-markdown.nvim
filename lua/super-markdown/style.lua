@@ -89,6 +89,8 @@ function M.apply()
   hl('SuperMarkdownH4', { fg = p.fg, bold = true })
   hl('SuperMarkdownH5', { fg = p.fg, bold = true })
   hl('SuperMarkdownH6', { fg = p.muted, bold = true })
+  -- Bold only; Tree-sitter / colorscheme heading fg stays.
+  hl('SuperMarkdownHeadingSimple', { bold = true })
   hl('SuperMarkdownBorder', { fg = p.border })
   hl('SuperMarkdownLink', { fg = p.accent, underline = false })
   hl('SuperMarkdownQuote', { fg = p.muted })

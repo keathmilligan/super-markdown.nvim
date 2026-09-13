@@ -1,3 +1,4 @@
+local config = require 'super-markdown.config'
 local emoji = require 'super-markdown.emoji'
 local heading_media = require 'super-markdown.media.heading'
 local mdtable = require 'super-markdown.table'
@@ -131,6 +132,10 @@ end
 ---@param media table[]
 ---@param width integer
 local function heading(buf, node, marks, media, width)
+  local mode = config.heading_mode()
+  if mode == 'off' then
+    return
+  end
   local srow, _, erow = node:range()
   local last = math.max(srow, erow - 1)
   local ln = line(buf, srow)
@@ -149,6 +154,45 @@ local function heading(buf, node, marks, media, width)
       level = 2
     end
     text = heading_media.visible_text(ln)
+  end
+  if mode == 'simple' then
+    if hashes then
+      local end_col = #hashes
+      if ln:sub(end_col + 1, end_col + 1) == ' ' then
+        end_col = end_col + 1
+      end
+      add(marks, {
+        key = string.format('hmark:%d', srow),
+        row = srow,
+        col = 0,
+        opts = { end_col = end_col, conceal = '' },
+        block_range = { srow, last },
+        hide_in_block = true,
+      })
+    else
+      local setext = line(buf, last)
+      add(marks, {
+        key = string.format('hsetext:%d', last),
+        row = last,
+        col = 0,
+        opts = { end_col = math.max(#setext, 1), conceal_lines = '' },
+        block_range = { srow, last },
+        hide_in_block = true,
+      })
+    end
+    add(marks, {
+      key = string.format('hsimple:%d', srow),
+      row = srow,
+      col = 0,
+      opts = {
+        end_col = #ln,
+        hl_group = 'SuperMarkdownHeadingSimple',
+        hl_mode = 'combine',
+      },
+      block_range = { srow, last },
+      hide_in_block = true,
+    })
+    return
   end
   if heading_media.available() then
     media[#media + 1] = {
@@ -218,7 +262,7 @@ local function code_block(buf, node, marks, media, width)
     end
   end
   local open = line(buf, srow)
-  if lang == 'mermaid' then
+  if lang == 'mermaid' and config.media_kind 'mermaid' then
     local src = table.concat(vim.api.nvim_buf_get_lines(buf, content_s, content_e, false), '\n')
     local last = math.max(srow, erow - 1)
     media[#media + 1] = {
@@ -262,6 +306,9 @@ local function code_block(buf, node, marks, media, width)
         mermaid_source = true,
       })
     end
+    return
+  end
+  if not config.feature 'code' then
     return
   end
   local last = math.max(srow, erow - 1)
@@ -352,6 +399,12 @@ local function quote_or_alert(buf, node, marks)
   local raw = first:match('%[!([%a]+)%]')
   local atype = raw and ALERTS[raw:upper()]
   local aname = raw and raw:upper() or nil
+  if atype and not config.feature 'alert' then
+    atype, aname = nil, nil
+  end
+  if not atype and not config.feature 'quote' then
+    return
+  end
   for r = srow, erow - 1 do
     local ln = line(buf, r)
     local bar_hl = atype and alert_hl(aname, 'Bar') or 'SuperMarkdownQuoteBar'
@@ -398,9 +451,12 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function list_item(buf, node, marks)
+  if not config.feature 'list' then
+    return
+  end
   local row = node:range()
   local ln = line(buf, row)
-  if ln:match('%[[ xX]%]') then
+  if ln:match('%[[ xX]%]') and config.feature 'checkbox' then
     return
   end
   local col = ln:find('[-*+]') or ln:find('%d+%.')
@@ -423,6 +479,9 @@ end
 ---@param marks super_markdown.Mark[]
 ---@param checked boolean
 local function task(buf, node, marks, checked)
+  if not config.feature 'checkbox' then
+    return
+  end
   local row, col = node:range()
   local ln = line(buf, row)
   local prefix = ln:sub(1, col)
@@ -441,7 +500,7 @@ local function task(buf, node, marks, checked)
 end
 
 local function table_block(buf, node, marks)
-  if not ctx then
+  if not ctx or not config.feature 'table' then
     return
   end
   local tbl = { rows = {} }
@@ -490,6 +549,9 @@ end
 ---@param marks super_markdown.Mark[]
 ---@param width integer
 local function hr(buf, node, marks, width)
+  if not config.feature 'hr' then
+    return
+  end
   local row = node:range()
   local ln = line(buf, row)
   add(marks, {
@@ -510,6 +572,9 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function frontmatter(buf, node, marks)
+  if not config.feature 'frontmatter' then
+    return
+  end
   local srow, _, erow = node:range()
   add(marks, {
     key = string.format('fm:%d', srow),
@@ -523,6 +588,9 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function codespan(buf, node, marks)
+  if not config.feature 'codespan' then
+    return
+  end
   local row, col, _, ecol = node:range()
   add(marks, {
     key = string.format('cs:%d:%d', row, col),
@@ -543,6 +611,9 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function strike(buf, node, marks)
+  if not config.feature 'strike' then
+    return
+  end
   local row, col, _, ecol = node:range()
   local ln = line(buf, row)
   if ln:sub(col + 1, col + 2) == '~~' then
@@ -564,6 +635,9 @@ end
 ---@param marks super_markdown.Mark[]
 ---@param hl string
 local function emphasis(buf, node, marks, hl)
+  if not config.feature 'emphasis' then
+    return
+  end
   local row, col, _, ecol = node:range()
   local text = util.node_text(buf, node)
   local open = text:match('^([*_]+)')
@@ -586,6 +660,9 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function link(buf, node, marks)
+  if not config.feature 'link' then
+    return
+  end
   local row, col, _, ecol = node:range()
   add(marks, {
     key = string.format('ln:%d:%d', row, col),
@@ -607,6 +684,9 @@ end
 ---@param node TSNode
 ---@param marks super_markdown.Mark[]
 local function shortcut(buf, node, marks)
+  if not config.feature 'footnote' then
+    return
+  end
   local row, col, _, ecol = node:range()
   local text = util.node_text(buf, node)
   if text:match('^%[%^') then
@@ -628,6 +708,9 @@ end
 ---@param node TSNode
 ---@param media table[]
 local function image(buf, node, marks, media)
+  if not config.media_kind 'image' then
+    return
+  end
   local row, col, erow, ecol = node:range()
   local src
   for child in node:iter_children() do
@@ -673,6 +756,9 @@ end
 ---@param erow integer
 ---@param marks super_markdown.Mark[]
 local function emojis(buf, srow, erow, marks)
+  if not config.feature 'emoji' then
+    return
+  end
   local lines = vim.api.nvim_buf_get_lines(buf, srow, erow, false)
   for i, ln in ipairs(lines) do
     local row = srow + i - 1
@@ -731,6 +817,9 @@ end
 ---@param code_ranges { [1]: integer, [2]: integer }[]
 ---@param media table[]
 local function math_blocks(buf, srow, erow, code_ranges, media)
+  if not config.media_kind 'math' then
+    return
+  end
   local function in_code(row)
     for _, r in ipairs(code_ranges) do
       if row >= r[1] and row < r[2] then

@@ -1,14 +1,14 @@
 ---
 feature: media
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # Media
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-12 |
+| 2026-09-11 | 2026-09-13 |
 
 ## Purpose
 
@@ -35,18 +35,25 @@ Local PNG SHALL pass through. JPEG, GIF, and WebP MAY use ImageMagick
 
 A standalone image line (`![…](…)` as the whole line) SHALL hide that source
 line unless the cursor is on it. The rendered image SHALL appear before the
-source line. Inline images in a paragraph SHALL stay visible.
+source line. Inline images in a paragraph SHALL stay visible. When
+`media.image` is false, image jobs and standalone source-line hide SHALL
+NOT apply.
 
-Mermaid diagrams, standalone images, and tables SHALL fit `media.max_width`
+Mermaid diagrams and standalone images SHALL fit `media.max_width`
 (default 50% of window content width; values `>1` are columns). Inline
 images SHALL fit the window width. Mermaid SHALL re-place on window resize.
+Tables SHALL use `table.max_width`, not `media.max_width`.
+
+`media.enabled` SHALL be a master switch: when false, images, mermaid,
+math, and heading graphics SHALL NOT run.
 
 ### Mermaid
 
 ` ```mermaid ` fences SHALL render with `mermaid.render()` → SVG →
 `rsvg-convert`. The diagram SHALL appear before the source. When the cursor
 is outside the block, fence lines and source SHALL be hidden. When the cursor
-is in the block, source SHALL be visible.
+is in the block, source SHALL be visible. When `media.mermaid` is false,
+mermaid fences SHALL use code chrome only.
 
 A parse failure SHALL show an in-buffer error. Only
 parse errors SHALL be cached until that diagram’s source changes. Converter
@@ -60,14 +67,16 @@ render when the cursor is on the same line. Math inside backticks SHALL NOT
 render. Display math SHALL appear before the source, with the same
 outside-block hide behavior as Mermaid.
 
-If the helper is missing, math SHALL remain as source.
+If the helper is missing, or `media.math` is false, math SHALL remain as
+source.
 
 ### Headings
 
-Unfocused headings SHALL render as Kitty graphics using the same PNG
-protocol and `rsvg-convert` path as other SVG media. The graphic SHALL
-appear before the source. Background SHALL be transparent so editor
-`Normal` shows through.
+Unfocused headings in full heading mode SHALL render as Kitty graphics
+using the same PNG protocol and `rsvg-convert` path as other SVG media.
+The graphic SHALL appear before the source. Background SHALL be transparent
+so editor `Normal` shows through. Heading graphics SHALL NOT run when
+heading is disabled or simple.
 
 The graphic SHALL be sized like GitHub markdown (`h1` 2em, `h2` 1.5em, `h3`
 1.25em, `h4` 1em, `h5` 0.875em, `h6` 0.85em). `1em` is the terminal cell
@@ -78,7 +87,8 @@ The graphic SHALL show the heading’s visible text: ATX hashes and setext
 underlines stripped; inline markers stripped; link labels kept.
 
 If Kitty graphics or `rsvg-convert` is unavailable, or media is disabled,
-headings SHALL NOT emit graphics and SHALL fall back to render chrome.
+full-mode headings SHALL NOT emit graphics and SHALL fall back to render
+chrome.
 
 ## Change history
 
@@ -87,3 +97,4 @@ headings SHALL NOT emit graphics and SHALL fall back to render chrome.
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-12 | Unfocused headings render as cached Kitty graphics |
 | 2026-09-12 | Tables share media.max_width with mermaid and standalone images |
+| 2026-09-13 | media.image flag; tables use table.max_width; mermaid off is code chrome |

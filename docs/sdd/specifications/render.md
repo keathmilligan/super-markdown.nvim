@@ -1,14 +1,14 @@
 ---
 feature: render
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # Render
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-12 |
+| 2026-09-11 | 2026-09-13 |
 
 ## Purpose
 
@@ -23,26 +23,54 @@ Rendering SHALL walk Tree-sitter for the visible range plus a small overscan.
 Updates SHALL be debounced (insert longer than normal). Cursor movement SHALL
 NOT reparse; it SHALL only retarget cursor-line and in-block visibility.
 
+### Feature flags
+
+Heading, code, quote, alert, list, checkbox, table, hr, frontmatter, link,
+codespan, strike, emphasis, emoji, and footnote SHALL each be independently
+optional and SHALL default to on. When a feature is off, its chrome SHALL
+NOT be applied.
+
+- `code` off SHALL NOT skip mermaid diagram jobs when mermaid media is on.
+- `alert` off SHALL treat GitHub alert markers as a plain quote when
+  `quote` is on.
+- `quote` off SHALL NOT prevent alerts when `alert` is on.
+- `checkbox` off SHALL skip task glyphs; the list marker SHALL follow
+  `list`.
+
 ### Headings
 
-ATX and setext headings SHALL both be supported.
+ATX and setext headings SHALL both be supported. Heading render SHALL
+follow `heading.enabled` and `heading.simple`. `enabled = false` SHALL win
+over `simple`.
 
-When Kitty graphics and `rsvg-convert` are available and the cursor is not
-on the heading (any line of a setext heading), the heading SHALL render as
-a graphic. Source markers and setext underlines SHALL NOT be visible. See
-[media](media.md).
+When heading is disabled, the plugin SHALL NOT apply heading marks or
+heading media. Source SHALL remain as written.
 
-When the cursor is on the heading, the graphic SHALL hide and the source
-SHALL show as normal markdown. Plugin heading highlights SHALL NOT apply;
-Tree-sitter / colorscheme heading highlights SHALL be used.
+When heading is enabled and `simple` is true, ATX `#` and setext underlines
+SHALL be concealed. The title SHALL stay in the buffer as bold text using
+the colorscheme / Tree-sitter heading color. The plugin SHALL NOT emit a
+heading graphic, plugin heading highlight groups, or an h1/h2 rule.
 
-If Kitty graphics or `rsvg-convert` is unavailable, ATX heading markers
-SHALL be concealed, the title SHALL use plugin heading highlights, and h1
-and h2 SHALL show a full-width border underline.
+When heading is enabled and `simple` is false (default), and Kitty graphics
+and `rsvg-convert` are available and the cursor is not on the heading (any
+line of a setext heading), the heading SHALL render as a graphic. Source
+markers and setext underlines SHALL NOT be visible. See [media](media.md).
+`simple` is not the graphics fallback: full mode SHALL still fall back to
+GFM heading chrome when Kitty / `rsvg-convert` / `media.enabled` is
+unavailable.
+
+When the cursor is on an enabled or simple heading, chrome SHALL hide and
+the source SHALL show as normal markdown. Plugin heading highlights SHALL
+NOT apply; Tree-sitter / colorscheme heading highlights SHALL be used.
+
+If full heading mode cannot use graphics, ATX heading markers SHALL be
+concealed, the title SHALL use plugin heading highlights, and h1 and h2
+SHALL show a full-width border underline.
 
 #### Unfocused heading graphic
 
-- GIVEN Kitty graphics and `rsvg-convert` are available
+- GIVEN heading is enabled and not simple
+- AND Kitty graphics and `rsvg-convert` are available
 - AND the cursor is not on a heading
 - WHEN that heading is in the viewport
 - THEN it SHALL appear as a GFM-sized graphic of the visible heading text
@@ -50,11 +78,26 @@ and h2 SHALL show a full-width border underline.
 
 #### Focused heading source
 
-- GIVEN the cursor is on a heading (including a setext underline)
+- GIVEN the cursor is on an enabled or simple heading (including a setext
+  underline)
 - WHEN rendering updates
-- THEN the graphic SHALL NOT appear
+- THEN heading chrome and any graphic SHALL NOT appear
 - AND the markdown source SHALL be visible
 - AND plugin heading highlight groups SHALL NOT apply to that heading
+
+#### Simple heading
+
+- GIVEN `heading.enabled` is true and `heading.simple` is true
+- WHEN a heading is unfocused
+- THEN ATX `#` / setext underline SHALL be concealed
+- AND the title SHALL be bold colorscheme / Tree-sitter heading text
+- AND no graphic, plugin heading group, or h1/h2 rule SHALL apply
+
+#### Disabled heading
+
+- GIVEN `heading.enabled` is false
+- WHEN a heading is in the viewport
+- THEN the plugin SHALL NOT apply heading marks or heading media
 
 ### Lists and tasks
 
@@ -66,7 +109,8 @@ The leading `- ` before a checkbox SHALL NOT remain visible.
 
 Blockquote `>` SHALL conceal to a left bar. GitHub alert markers
 (`> [!NOTE]` and the other four types) SHALL conceal to the alert title and
-icon when the cursor is not on that line.
+icon when the cursor is not on that line. Disabled alerts SHALL render as
+plain quotes when quotes are on. Disabled quotes SHALL NOT prevent alerts.
 
 ### Code fences
 
@@ -85,7 +129,8 @@ When the cursor is anywhere in the block (opening fence through closing fence):
 - The code-block shade SHALL remain
 
 The plugin SHALL own fence chrome. Tree-sitter markdown highlights SHALL NOT
-conceal fence delimiter lines.
+conceal fence delimiter lines. When mermaid media is off, mermaid fences
+SHALL use code chrome only.
 
 ### Tables
 
@@ -94,12 +139,12 @@ leading spaces before `|`. Overlay formatting SHALL start at the first `|`.
 Source pipes SHALL be concealed. The cursor line SHALL show the source table
 row.
 
-When a table is wider than `media.max_width` (same cap as mermaid and
-standalone images), column widths SHALL shrink so the table fits. Cell text
-SHALL wrap on word boundaries inside the cell, and the row SHALL grow
-downward. Shorter cells in the same row SHALL pad to that height (HTML table
-layout). Extra wrapped lines SHALL use `virt_lines`, or overlay the source
-line's wrap continuations when those already exist.
+When a table is wider than `table.max_width` (default 75% of window content
+width; values `>1` are columns), column widths SHALL shrink so the table
+fits. Cell text SHALL wrap on word boundaries inside the cell, and the row
+SHALL grow downward. Shorter cells in the same row SHALL pad to that height
+(HTML table layout). Extra wrapped lines SHALL use `virt_lines`, or overlay
+the source line's wrap continuations when those already exist.
 
 ### Other chrome
 
@@ -122,3 +167,4 @@ above the window.
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-12 | Unfocused headings are graphics; focused headings show source |
 | 2026-09-12 | Wide tables wrap cell text and pad sibling cells to row height |
+| 2026-09-13 | Per-feature flags; heading simple/off; tables use table.max_width |

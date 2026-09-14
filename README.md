@@ -4,7 +4,7 @@ Inline GitHub-Flavored Markdown rendering for Neovim.
 
 ![screenshot](images/screenshot.png)
 
-- Graphically-rendered headings, images, mermaid diagrams and math using Kitty Graphicsl Protocol
+- Graphically-rendered headings, images, mermaid diagrams and math using Kitty Graphics Protocol
 - GitHub-style checklists, alerts, rendered tables and more
 - Fully-configurable - enable/disable rendering by element type
 
@@ -30,7 +30,7 @@ Graphically-rendered headings:
 
 #### Simple Headings
 
-Headings can also be rendered non-graphically using standard syntax highlighting colors
+Headings can also be rendered non-graphically wth standard syntax highlighting colors
 using the `simple` flag in config (see below):
 
 ![simple-headings](images/simple-headings.png)

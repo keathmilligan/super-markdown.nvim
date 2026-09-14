@@ -8,6 +8,10 @@ Inline GitHub-Flavored Markdown rendering for Neovim.
 - GitHub-style checklists, alerts, rendered tables and more
 - Fully-configurable - enable/disable rendering by element type
 
+>[!WARNING]
+>
+> This is an experimental work-in-progress that uses Kitty Graphics Protocol heavily.
+
 ## Requirements
 
 - Neovim `>= 0.11` (developed on 0.12)

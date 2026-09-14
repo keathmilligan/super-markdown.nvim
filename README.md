@@ -2,6 +2,8 @@
 
 Inline GitHub-Flavored Markdown rendering for Neovim.
 
+![screenshot](images/screenshot.png)
+
 - Graphically-rendered headings, images, mermaid diagrams and math using Kitty Graphicsl Protocol
 - GitHub-style checklists, alerts, rendered tables and more
 - Fully-configurable - enable/disable rendering by element type
@@ -18,6 +20,42 @@ Inline GitHub-Flavored Markdown rendering for Neovim.
 ### A note about tmux, Zellij, herdr, etc.
 
 If you use a multiplexer, it must also support Kitty graphics.
+
+## Features
+
+### Headings
+
+Graphically-rendered headings:
+![headings](images/headings.png)
+
+#### Simple Headings
+
+Headings can also be rendered non-graphically using standard syntax highlighting colors
+using the `simple` flag in config (see below):
+
+![simple-headings](images/simple-headings.png)
+
+### Tables
+
+Text in table cells is wrapped and supports markdown formatting:
+
+![tables](images/tables.png)
+
+### Text Effects
+
+![text](images/misc.png)
+
+### Mermaid
+
+![mermaid](images/mermaid.png)
+
+### Images
+
+![images](images/images.png)
+
+### Math
+
+![math](images/math.png)
 
 ## Install
 
@@ -66,6 +104,9 @@ logs an error and leaves the fence as source. There is no Chromium fallback.
 
 Math (`$…$`, `$$…$$`) is TeX → SVG (MathJax lite adaptor; KaTeX has no SVG
 backend without a browser). Skip if the helper is not installed.
+
+While editing an image's source line in Insert mode, its current preview is
+kept until you leave the line or exit Insert mode. New images render then too.
 
 ## Configuration
 

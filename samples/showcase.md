@@ -4,10 +4,7 @@ title: super-markdown.nvim showcase
 
 # super-markdown.nvim showcase
 
-Open this file in Neovim with the plugin enabled. It exercises every in-buffer
-feature.
-
-Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
+Open this file in Neovim with the plugin enabled.
 
 ## Headings
 
@@ -35,6 +32,8 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.
 monospace face. Autolink: https://github.com/keathmilligan/super-markdown.nvim
 
 A footnote looks like this.[^sample]
+
+Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
 
 ## Lists
 

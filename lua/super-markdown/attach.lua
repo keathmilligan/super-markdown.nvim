@@ -83,6 +83,12 @@ local function should_render(buf)
 end
 
 ---@param buf integer
+---@return boolean
+local function in_insert(buf)
+  return vim.api.nvim_get_current_buf() == buf and vim.fn.mode():sub(1, 1) == 'i'
+end
+
+---@param buf integer
 local function render(buf)
   if not should_render(buf) then
     media.clear(buf)
@@ -100,6 +106,7 @@ local function render(buf)
   end
   local cursor = vim.api.nvim_win_get_cursor(win)
   local s = apply.state(buf)
+  plan.media = media.defer_images(buf, plan.media)
   local marks = {}
   for _, m in ipairs(plan.marks) do
     marks[#marks + 1] = m
@@ -126,7 +133,7 @@ local function make_debounced(buf)
     end
   end)
   return function()
-    if vim.fn.mode():find 'i' then
+    if in_insert(buf) then
       insert_fn()
     else
       normal_fn()
@@ -158,7 +165,7 @@ function M.attach(buf)
   local refresh = make_debounced(buf)
   refreshes[buf] = refresh
 
-  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI', 'WinScrolled', 'BufWinEnter' }, {
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'WinScrolled', 'BufWinEnter' }, {
     group = M.group,
     buffer = buf,
     callback = refresh,
@@ -166,7 +173,13 @@ function M.attach(buf)
   vim.api.nvim_create_autocmd('ModeChanged', {
     group = M.group,
     buffer = buf,
-    callback = refresh,
+    callback = function()
+      -- Same-line Insert typing stays frozen. Leaving Insert refreshes.
+      if in_insert(buf) then
+        return
+      end
+      refresh()
+    end,
   })
   vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
     group = M.group,
@@ -174,6 +187,13 @@ function M.attach(buf)
     callback = function()
       local win = util.buf_win(buf)
       if win == 0 then
+        return
+      end
+      if in_insert(buf) then
+        local row = vim.api.nvim_win_get_cursor(win)[1] - 1
+        if row ~= apply.state(buf).cursor_row then
+          refresh()
+        end
         return
       end
       apply.on_cursor(buf, win)
@@ -185,6 +205,17 @@ function M.attach(buf)
   vim.keymap.set({ 'n', 'v' }, '<Up>', function()
     apply.step_up(buf, vim.api.nvim_get_current_win())
   end, { buffer = buf, silent = true, desc = 'super-markdown up' })
+  local function insert_step(dir, key)
+    return function()
+      if vim.fn.pumvisible() == 1 then
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(key, true, false, true), 'n', false)
+        return
+      end
+      apply.step_visible(buf, vim.api.nvim_get_current_win(), dir)
+    end
+  end
+  vim.keymap.set('i', '<Up>', insert_step(-1, '<Up>'), { buffer = buf, silent = true, desc = 'super-markdown up' })
+  vim.keymap.set('i', '<Down>', insert_step(1, '<Down>'), { buffer = buf, silent = true, desc = 'super-markdown down' })
   vim.api.nvim_create_autocmd('BufWipeout', {
     group = M.group,
     buffer = buf,

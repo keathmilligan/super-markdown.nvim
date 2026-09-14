@@ -17,6 +17,7 @@ M.ns = vim.api.nvim_create_namespace 'super-markdown'
 ---@field show_in_block? boolean
 ---@field image_source? boolean
 ---@field heading_source? boolean
+---@field media_job? table
 
 ---@class super_markdown.BufState
 ---@field enabled boolean
@@ -26,9 +27,12 @@ M.ns = vim.api.nvim_create_namespace 'super-markdown'
 ---@field cursor_row integer
 ---@field orig_wo table<integer, table<string, any>>
 ---@field gen integer
+---@field changedtick integer|nil
+---@field media_tick integer|nil
 ---@field jobs table<string, { proc?: vim.SystemObj, dest: string }>
 ---@field media table[]|nil
 ---@field media_marks table<string, super_markdown.Mark>|nil
+---@field media_deferred_row integer|nil
 ---@field parsed { [1]: integer, [2]: integer }|nil
 
 ---@type table<integer, super_markdown.BufState>
@@ -106,34 +110,156 @@ local function opts_for(mark, cursor_row)
   return opts
 end
 
+---Neovim draws multiple virt_lines at one position as 1, n, n-1, ..., 2.
+---A treesitter (or any other) extmark at that host makes two headings swap.
+---@param mark super_markdown.Mark
+---@return string|nil
+local function virt_group(mark)
+  local opts = mark.opts
+  if not mark.media_job or not opts or not opts.virt_lines then
+    return nil
+  end
+  return string.format('%d:%s', mark.row, opts.virt_lines_above and 'a' or 'b')
+end
+
+---@param marks super_markdown.Mark[]
+---@return super_markdown.Mark
+local function pack_virt(marks)
+  if #marks == 1 then
+    return marks[1]
+  end
+  local virt = {}
+  for _, m in ipairs(marks) do
+    for _, line in ipairs(m.opts.virt_lines) do
+      virt[#virt + 1] = line
+    end
+  end
+  local first = marks[1]
+  local opts = vim.tbl_extend('force', {}, first.opts)
+  opts.virt_lines = virt
+  return {
+    key = first.key,
+    row = first.row,
+    col = first.col,
+    opts = opts,
+  }
+end
+
+---Place heading graphics on a visible neighbor, skipping concealed sources.
+---This is cursor-dependent: revealing a heading changes its neighbors' hosts.
+---@param buf integer
+---@param job table
+---@return integer row
+---@return boolean above
+function M.heading_host(buf, job)
+  local s = M.state(buf)
+  local function hidden(row)
+    if row < 0 then
+      return true
+    end
+    for _, m in ipairs(s.plan or {}) do
+      if m.row == row then
+        local in_block = m.block_range and s.cursor_row >= m.block_range[1] and s.cursor_row <= m.block_range[2]
+        if m.image_source and s.cursor_row ~= row then
+          return true
+        end
+        if (m.mermaid_source or m.mermaid_anchor or m.heading_source) and not in_block then
+          return true
+        end
+      end
+    end
+    return false
+  end
+  local host = job.row - 1
+  while host >= 0 and hidden(host) do
+    host = host - 1
+  end
+  -- virt_lines below the cursor line make <CR> jump past the graphic.
+  if host >= 0 and host ~= s.cursor_row then
+    return host, false
+  end
+  local after = job.end_row or (job.row + 1)
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  while after < line_count and hidden(after) do
+    after = after + 1
+  end
+  -- A following heading must stay below the source being edited.
+  if job.row > s.cursor_row then
+    while after < line_count and after == s.cursor_row do
+      after = after + 1
+      while after < line_count and hidden(after) do
+        after = after + 1
+      end
+    end
+  end
+  if after < line_count then
+    return after, true
+  end
+  return job.row, true
+end
+
 ---@param buf integer
 ---@param plan super_markdown.Mark[]
 ---@param cursor_row integer
 function M.apply(buf, plan, cursor_row)
   local s = M.state(buf)
   s.plan = plan
+  s.changedtick = vim.api.nvim_buf_get_changedtick(buf)
   s.cursor_row = cursor_row
+  local saved = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_buf(win) == buf then
+      saved[win] = vim.api.nvim_win_get_cursor(win)
+    end
+  end
   vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1)
   s.ids = {}
-  local by_row = {} ---@type table<integer, super_markdown.Mark[]>
+  local visible = {} ---@type super_markdown.Mark[]
   for _, mark in ipairs(plan) do
+    if mark.media_job and mark.media_job.kind == 'heading' then
+      local row, above = M.heading_host(buf, mark.media_job)
+      mark.row = row
+      mark.opts.virt_lines_above = above or nil
+    end
     local in_block = mark.block_range
       and cursor_row >= mark.block_range[1]
       and cursor_row <= mark.block_range[2]
     if mark.mermaid_source and in_block then
-      goto continue
+      goto skip
     end
     if mark.hide_in_block and in_block then
-      goto continue
+      goto skip
     end
     if mark.show_in_block and not in_block then
-      goto continue
+      goto skip
     end
     if mark.image_source and cursor_row == mark.row then
-      goto continue
+      goto skip
     end
     if mark.heading_source and in_block then
-      goto continue
+      goto skip
+    end
+    visible[#visible + 1] = mark
+    ::skip::
+  end
+  local grouped = {} ---@type table<string, super_markdown.Mark[]>
+  for _, mark in ipairs(visible) do
+    local gk = virt_group(mark)
+    if gk then
+      grouped[gk] = grouped[gk] or {}
+      grouped[gk][#grouped[gk] + 1] = mark
+    end
+  end
+  local by_row = {} ---@type table<integer, super_markdown.Mark[]>
+  local emitted = {} ---@type table<string, boolean>
+  for _, mark in ipairs(visible) do
+    local gk = virt_group(mark)
+    if gk then
+      if emitted[gk] then
+        goto continue
+      end
+      emitted[gk] = true
+      mark = pack_virt(grouped[gk])
     end
     local row = mark.row
     by_row[row] = by_row[row] or {}
@@ -146,13 +272,31 @@ function M.apply(buf, plan, cursor_row)
     ::continue::
   end
   s.by_row = by_row
+  -- conceal_lines can snap the cursor to a later visible line (e.g. a table).
+  for win, cur in pairs(saved) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+      local now = vim.api.nvim_win_get_cursor(win)
+      if now[1] ~= cur[1] then
+        pcall(vim.api.nvim_win_set_cursor, win, cur)
+      end
+    end
+  end
+end
+
+---Extmarks follow edits automatically; the Lua plan keeps its old coordinates
+---until parsing finishes. Never reset those extmarks from a stale plan.
+---@param buf integer
+---@return boolean
+function M.is_current(buf)
+  local s = M.states[buf]
+  return s ~= nil and (s.changedtick == nil or s.changedtick == vim.api.nvim_buf_get_changedtick(buf))
 end
 
 ---@param buf integer
 ---@param row integer
 function M.reapply_row(buf, row)
   local s = M.states[buf]
-  if not s then
+  if not s or not M.is_current(buf) then
     return
   end
   local marks = s.by_row[row]
@@ -224,7 +368,7 @@ end
 ---@param new_row integer
 function M.cursor(buf, new_row)
   local s = M.states[buf]
-  if not s or s.cursor_row == new_row then
+  if not s or s.cursor_row == new_row or not M.is_current(buf) then
     return
   end
   M.apply(buf, s.plan, new_row)
@@ -235,7 +379,10 @@ end
 ---@param buf integer
 ---@param win integer
 function M.on_cursor(buf, win)
-  if cursor_busy[buf] then
+  if vim.api.nvim_get_current_buf() == buf and vim.fn.mode():sub(1, 1) == 'i' then
+    return
+  end
+  if cursor_busy[buf] or not M.is_current(buf) then
     return
   end
   if win == 0 or not vim.api.nvim_win_is_valid(win) then
@@ -245,6 +392,7 @@ function M.on_cursor(buf, win)
   local cur = vim.api.nvim_win_get_cursor(win)
   local row, col = cur[1] - 1, cur[2]
   local s = M.state(buf)
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
   local prev = s.cursor_row
   -- Only unstick mermaid/image traps. Do not intercept long jumps (gg / Ctrl-Home).
   if M.is_media_open(s.plan, row) and prev == row + 1 and row > 0 then
@@ -254,6 +402,9 @@ function M.on_cursor(buf, win)
   M.cursor(buf, row)
   local function pin()
     if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= buf then
+      return
+    end
+    if vim.api.nvim_buf_get_changedtick(buf) ~= tick or M.state(buf).cursor_row ~= row then
       return
     end
     local now = vim.api.nvim_win_get_cursor(win)[1] - 1
@@ -272,6 +423,42 @@ function M.on_cursor(buf, win)
     pin()
     cursor_busy[buf] = nil
   end)
+end
+
+---@param win integer
+---@param lnum integer
+---@param col integer
+local function set_line_cursor(win, lnum, col)
+  local buf = vim.api.nvim_win_get_buf(win)
+  local line = vim.api.nvim_buf_get_lines(buf, lnum - 1, lnum, false)[1] or ''
+  if col > #line then
+    col = #line
+  end
+  pcall(vim.api.nvim_win_set_cursor, win, { lnum, col })
+end
+
+---Move one buffer line. Reveal the destination first so conceal_lines
+---cannot snap the cursor (and so a long column still lands on a short line).
+---@param buf integer
+---@param win integer
+---@param dir integer
+function M.step_visible(buf, win, dir)
+  if win == 0 then
+    win = vim.api.nvim_get_current_win()
+  end
+  if not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+  local cur = vim.api.nvim_win_get_cursor(win)
+  local last = vim.api.nvim_buf_line_count(buf)
+  local target = cur[1] + dir
+  if target < 1 or target > last then
+    return
+  end
+  if M.is_current(buf) then
+    M.cursor(buf, target - 1)
+  end
+  set_line_cursor(win, target, cur[2])
 end
 
 ---@param buf integer
@@ -324,6 +511,8 @@ function M.clear(buf)
     s.jobs = {}
     s.media = nil
     s.media_sig = nil
+    s.media_tick = nil
+    s.media_deferred_row = nil
     s.media_shown = nil
     s.media_marks = nil
     s.ids = {}

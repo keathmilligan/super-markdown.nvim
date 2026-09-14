@@ -150,6 +150,32 @@ media.clear(b)
 apply.clear(b)
 eq(vim.tbl_count(terminal), 0, 'clearing a buffer releases its images')
 
+local math_media = require 'super-markdown.media.math'
+math_media.cache_path = function(_, _, height)
+  local path = '/math-' .. height .. '.png'
+  paths[path] = { height * 4, height }
+  return path
+end
+for _, height in ipairs { 18, 20, 32, 40 } do
+  cell = { cell_width = 14, cell_height = height }
+  media.update(a, win, {
+    {
+      key = 'mathi:1:0',
+      kind = 'math',
+      row = 1,
+      col = 0,
+      end_col = 6,
+      content = 'x + y',
+      display = false,
+      max_rows = 1,
+    },
+  })
+  local req = requests[#requests]
+  eq(req.r, 1, 'inline math occupies one terminal row at cell height ' .. height)
+  eq(req.c, math.ceil(height * 4 / cell.cell_width), 'inline math retains its full width at cell height ' .. height)
+end
+media.clear(a)
+
 media.update(a, win, { job(1) })
 vim.api.nvim_exec_autocmds('VimLeavePre', { group = 'super-markdown.graphics' })
 eq(vim.tbl_count(terminal), 0, 'Neovim exit frees all images owned by the plugin')

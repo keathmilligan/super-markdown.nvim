@@ -16,6 +16,8 @@ local M = {}
 -- may choose any placement for an image; sharing one across sizes is ambiguous.
 ---@type table<integer, table<string, { id: integer, pid: integer, file: string, cols: integer, rows: integer }>>
 local placements = {}
+local source_ns = vim.api.nvim_create_namespace 'super-markdown.media.sources'
+local sources = {} ---@type table<integer, table<string, integer>>
 
 ---@param buf integer
 function M.clear(buf)
@@ -23,6 +25,15 @@ function M.clear(buf)
     protocol.delete(img.id)
   end
   placements[buf] = nil
+  sources[buf] = nil
+  if vim.api.nvim_buf_is_valid(buf) then
+    vim.api.nvim_buf_clear_namespace(buf, source_ns, 0, -1)
+  end
+end
+
+local function matches(job, mark)
+  -- Row-based keys can be reused by different content after an edit.
+  return job and (not mark.media_job or vim.deep_equal(job, mark.media_job))
 end
 
 ---@param jobs table[]
@@ -31,15 +42,78 @@ end
 function M.active_marks(jobs, marks)
   local live = {}
   for _, job in ipairs(jobs) do
-    live[job.key] = true
+    live[job.key] = job
   end
   local active = {}
   for key, mark in pairs(marks or {}) do
-    if live[key] then
+    if matches(live[key], mark) then
       active[#active + 1] = mark
     end
   end
+  -- Several graphics can share one visible host when consecutive source
+  -- lines are concealed. apply() merges those virt_lines; sort so the
+  -- combined stack follows source order.
+  table.sort(active, function(a, b)
+    local aj, bj = a.media_job or a, b.media_job or b
+    if aj.row ~= bj.row then
+      return aj.row < bj.row
+    end
+    if (aj.col or 0) ~= (bj.col or 0) then
+      return (aj.col or 0) < (bj.col or 0)
+    end
+    return a.key < b.key
+  end)
   return active
+end
+
+local function in_insert(buf)
+  return vim.api.nvim_get_current_buf() == buf and vim.fn.mode():sub(1, 1) == 'i'
+end
+
+local function insert_row(buf)
+  if in_insert(buf) then
+    return vim.api.nvim_win_get_cursor(0)[1] - 1
+  end
+end
+
+---Keep the previous image jobs while their source line is being edited,
+---including when incomplete Markdown temporarily removes them from the parse.
+---@param buf integer
+---@param jobs table[]
+---@return table[]
+function M.defer_images(buf, jobs)
+  local s = apply.state(buf)
+  local row = insert_row(buf)
+  local deferred = row ~= nil and s.media_deferred_row == row
+  local ready = {}
+  for _, job in ipairs(jobs) do
+    if job.kind == 'image' and job.row == row then
+      deferred = true
+    else
+      ready[#ready + 1] = job
+    end
+  end
+  for _, job in ipairs(s.media or {}) do
+    local source = sources[buf] and sources[buf][job.key]
+    local pos = source and vim.api.nvim_buf_get_extmark_by_id(buf, source_ns, source, {}) or {}
+    if row ~= nil and job.kind == 'image' and pos[1] == row then
+      deferred = true
+      local delta = row - job.row
+      if delta ~= 0 then
+        job = vim.deepcopy(job)
+        job.row = row
+        job.end_row = job.end_row and (job.end_row + delta)
+        local mark = s.media_marks and s.media_marks[job.key]
+        if mark then
+          mark.row = job.standalone and math.max(0, row - 1) or row
+          mark.media_job = vim.deepcopy(job)
+        end
+      end
+      ready[#ready + 1] = job
+    end
+  end
+  s.media_deferred_row = deferred and row or nil
+  return ready
 end
 
 local function pixel_width(win, max_cols)
@@ -61,53 +135,7 @@ function M.block_host(buf, job)
   return job.row, true
 end
 
----Same as a standalone image: virt_lines on a visible neighbor line.
----Skip conceal_lines hosts (images / mermaid / display math / headings)
----so the graphic is not attached to a hidden row.
----@param buf integer
----@param job table
----@return integer row
----@return boolean above
-function M.heading_host(buf, job)
-  local s = apply.state(buf)
-  local function hidden(row)
-    if row < 0 then
-      return true
-    end
-    for _, m in ipairs(s.plan or {}) do
-      if m.row == row then
-        local in_block = m.block_range and s.cursor_row >= m.block_range[1] and s.cursor_row <= m.block_range[2]
-        if m.image_source and s.cursor_row ~= row then
-          return true
-        end
-        if (m.mermaid_source or m.mermaid_anchor or m.heading_source) and not in_block then
-          return true
-        end
-      end
-    end
-    return false
-  end
-  local host = job.row - 1
-  while host >= 0 and hidden(host) do
-    host = host - 1
-  end
-  if host >= 0 and not hidden(host) then
-    return host, false
-  end
-  -- No visible line above (first line of the buffer): draw above the next
-  -- visible line so conceal_lines can hide the heading source without
-  -- taking the graphic with it.
-  local last = (job.end_row or (job.row + 1)) - 1
-  local after = last + 1
-  local line_count = vim.api.nvim_buf_line_count(buf)
-  while after < line_count and hidden(after) do
-    after = after + 1
-  end
-  if after < line_count and not hidden(after) then
-    return after, true
-  end
-  return job.row, true
-end
+M.heading_host = apply.heading_host
 
 local function virt_line_opts(virt, above)
   local opts = {
@@ -195,6 +223,7 @@ local function place_png(buf, win, job, file)
   s.media_marks = s.media_marks or {}
 
   local function add_mark(mark)
+    mark.media_job = vim.deepcopy(job)
     s.media_marks[job.key] = mark
   end
 
@@ -278,7 +307,7 @@ local function place_png(buf, win, job, file)
       existing[#existing + 1] = m
     end
   end
-  for _, m in pairs(s.media_marks) do
+  for _, m in ipairs(M.active_marks(s.media or {}, s.media_marks)) do
     existing[#existing + 1] = m
   end
   apply.apply(buf, existing, s.cursor_row)
@@ -335,6 +364,7 @@ local function place_mermaid_error(buf, job, err)
   s.media_marks = s.media_marks or {}
   s.media_marks[job.key] = {
     key = prefix,
+    media_job = vim.deepcopy(job),
     row = host,
     col = 0,
     opts = virt_line_opts(virt, above),
@@ -345,7 +375,7 @@ local function place_mermaid_error(buf, job, err)
       existing[#existing + 1] = m
     end
   end
-  for _, m in pairs(s.media_marks) do
+  for _, m in ipairs(M.active_marks(s.media or {}, s.media_marks)) do
     existing[#existing + 1] = m
   end
   apply.apply(buf, existing, s.cursor_row)
@@ -359,6 +389,10 @@ local function place_if_wanted(buf, job, file)
   if not s.enabled or not vim.api.nvim_buf_is_valid(buf) then
     return
   end
+  if s.media_tick ~= vim.api.nvim_buf_get_changedtick(buf) then
+    s.media_sig = nil
+    return
+  end
   local current
   for _, j in ipairs(s.media or {}) do
     if j.key == job.key then
@@ -367,6 +401,11 @@ local function place_if_wanted(buf, job, file)
     end
   end
   if not current then
+    return
+  end
+  if current.kind == 'image' and current.row == insert_row(buf) then
+    s.media_deferred_row = current.row
+    s.media_sig = nil
     return
   end
   local win = util.buf_win(buf)
@@ -387,21 +426,26 @@ local function ensure_job(buf, job, dest, start)
     return
   end
   if inflight then
-    kill_job(inflight)
     s.jobs[job.key] = nil
+    kill_job(inflight)
   end
   if cache.hit(dest) then
     place_if_wanted(buf, job, dest)
     return
   end
-  s.jobs[job.key] = { dest = dest }
+  local handle = { dest = dest }
+  s.jobs[job.key] = handle
   local proc = start(function(ok, err, file)
     local cur = s.jobs[job.key]
-    local wanted = cur and cur.dest == dest
+    local wanted = cur == handle
     if wanted then
       s.jobs[job.key] = nil
     end
     if not wanted then
+      return
+    end
+    if not vim.api.nvim_buf_is_valid(buf) or s.media_tick ~= vim.api.nvim_buf_get_changedtick(buf) then
+      s.media_sig = nil
       return
     end
     if not ok then
@@ -417,8 +461,8 @@ local function ensure_job(buf, job, dest, start)
     end
     place_if_wanted(buf, job, file or dest)
   end)
-  if s.jobs[job.key] and s.jobs[job.key].dest == dest then
-    s.jobs[job.key].proc = proc
+  if s.jobs[job.key] == handle then
+    handle.proc = proc
   end
 end
 
@@ -432,9 +476,25 @@ function M.update(buf, win, jobs)
   end
   local s = apply.state(buf)
   s.media = jobs
-  local live = {} ---@type table<string, boolean>
+  s.media_tick = vim.api.nvim_buf_get_changedtick(buf)
+  -- Track the end of each image's source separately from its preview's
+  -- host line. Left gravity keeps typing Enter at the end on the old source;
+  -- inserting lines before the image moves the anchor with the image.
+  vim.api.nvim_buf_clear_namespace(buf, source_ns, 0, -1)
+  sources[buf] = {}
+  local live = {} ---@type table<string, table>
+  local deferred = {} ---@type table<string, boolean>
   for _, job in ipairs(jobs) do
-    live[job.key] = true
+    live[job.key] = job
+    deferred[job.key] = job.kind == 'image' and job.row == s.media_deferred_row
+    if job.kind == 'image' then
+      local line = vim.api.nvim_buf_get_lines(buf, job.row, job.row + 1, false)[1] or ''
+      local col = job.end_row == job.row and job.end_col or #line
+      sources[buf][job.key] = vim.api.nvim_buf_set_extmark(buf, source_ns, job.row, math.min(col, #line), {
+        right_gravity = false,
+        strict = false,
+      })
+    end
   end
   for key, img in pairs(placements[buf] or {}) do
     if not live[key] then
@@ -443,15 +503,18 @@ function M.update(buf, win, jobs)
     end
   end
   for key, handle in pairs(s.jobs) do
-    if not live[key] then
-      kill_job(handle)
+    if not live[key] or deferred[key] then
       s.jobs[key] = nil
+      kill_job(handle)
     end
   end
   if s.media_marks then
-    for key in pairs(s.media_marks) do
-      if not live[key] then
+    for key, mark in pairs(s.media_marks) do
+      if not matches(live[key], mark) then
         s.media_marks[key] = nil
+        if s.media_shown then
+          s.media_shown[key] = nil
+        end
       end
     end
   end
@@ -461,6 +524,7 @@ function M.update(buf, win, jobs)
     tostring(cell.cell_width),
     tostring(cell.cell_height),
     vim.o.background,
+    tostring(s.media_deferred_row),
   }
   for _, job in ipairs(jobs) do
     parts[#parts + 1] = table.concat({
@@ -468,6 +532,11 @@ function M.update(buf, win, jobs)
       job.kind,
       job.content or job.src or '',
       tostring(job.row),
+      tostring(job.col),
+      tostring(job.end_row),
+      tostring(job.end_col),
+      tostring(job.standalone),
+      tostring(job.display),
       tostring(job.level),
       tostring(job.max_cols),
       tostring(job.max_rows),
@@ -486,11 +555,13 @@ function M.update(buf, win, jobs)
 
   for _, job in ipairs(jobs) do
     if job.kind == 'image' then
-      local img_px = bucket_px(pixel_width(win, M.job_max_cols(job, buf, win)))
-      local dest = image.cache_path(markdown_file, job.src, img_px)
-      ensure_job(buf, job, dest, function(done)
-        return image.prepare(markdown_file, job.src, dest, img_px, done)
-      end)
+      if job.row ~= s.media_deferred_row then
+        local img_px = bucket_px(pixel_width(win, M.job_max_cols(job, buf, win)))
+        local dest = image.cache_path(markdown_file, job.src, img_px)
+        ensure_job(buf, job, dest, function(done)
+          return image.prepare(markdown_file, job.src, dest, img_px, done)
+        end)
+      end
     elseif job.kind == 'mermaid' and cfg.media.mermaid then
       local cached_err = mermaid.cached_error(job.content)
       if cached_err then
@@ -504,7 +575,9 @@ function M.update(buf, win, jobs)
       end
     elseif job.kind == 'math' and cfg.media.math then
       local cell_h = protocol.size().cell_height
-      local height = job.display and math.max(72, math.floor(cell_h * 4)) or math.max(cell_h, math.floor(cell_h * 1.05))
+      -- Even one extra pixel rounds up to two rows in fit_cells, halving
+      -- the width when inline math is constrained back to a single row.
+      local height = job.display and math.max(72, math.floor(cell_h * 4)) or cell_h
       local dest = math_media.cache_path(job.content, job.display, height)
       ensure_job(buf, job, dest, function(done)
         return math_media.render(job.content, job.display, dest, height, done)

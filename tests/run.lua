@@ -844,8 +844,8 @@ else
       host, above = media.heading_host(buf, { row = 1, end_row = 2 })
       eq(
         { host, above },
-        { 0, false },
-        'following heading graphic stays below the heading being edited'
+        { 2, true },
+        'following heading graphic is not attached to the line being edited'
       )
     else
       ok(false, 'parse consecutive headings')
@@ -888,11 +888,35 @@ else
     apply.step_up(buf, win)
     eq(vim.api.nvim_win_get_cursor(win)[1], 4, 'k from below a heading lands on the heading')
     apply.apply(buf, plan.marks, 4)
+    local stay = vim.api.nvim_win_get_cursor(win)[1]
+    apply.apply(buf, plan.marks, stay - 1)
+    eq(vim.api.nvim_win_get_cursor(win)[1], stay, 'reapplying marks does not move the cursor')
     vim.api.nvim_win_set_cursor(win, { 5, 0 })
     apply.cursor(buf, 4)
     vim.api.nvim_win_set_cursor(win, { 1, 0 })
     apply.on_cursor(buf, win)
     eq(vim.api.nvim_win_get_cursor(win)[1], 1, 'jump to start is not intercepted as a skipped heading')
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      'short',
+      'a much longer insert line',
+      '# Heading',
+      'body',
+    })
+    local insert_plan = parse.parse(buf, win, 50)
+    if insert_plan then
+      apply.apply(buf, insert_plan.marks, 1)
+      vim.api.nvim_win_set_cursor(win, { 2, #'a much longer insert line' })
+      apply.step_visible(buf, win, -1)
+      eq(vim.api.nvim_win_get_cursor(win)[1], 1, 'insert up from a long line still moves')
+      apply.apply(buf, insert_plan.marks, 3)
+      vim.api.nvim_win_set_cursor(win, { 4, 0 })
+      apply.step_visible(buf, win, -1)
+      eq(vim.api.nvim_win_get_cursor(win)[1], 3, 'insert up lands on a heading instead of skipping it')
+      apply.step_visible(buf, win, 1)
+      eq(vim.api.nvim_win_get_cursor(win)[1], 4, 'insert down moves one line')
+    else
+      ok(false, 'parse insert motion buffer')
+    end
   else
     ok(false, 'parse heading graphics')
   end

@@ -288,7 +288,7 @@ function M.fit_cells(px_w, px_h, max_cols, max_rows)
   return math.max(1, math.floor(cols * scale + 0.5)), math.max(1, math.floor(rows * scale + 0.5))
 end
 
----Scale an image to an exact column width, keeping aspect ratio.
+---Scale generated media (mermaid) to an exact column width, keeping aspect ratio.
 ---@param px_w integer
 ---@param px_h integer
 ---@param target_cols integer

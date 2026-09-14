@@ -17,7 +17,7 @@ local M = {}
 ---@field mermaid boolean
 ---@field math boolean
 ---@field max_width number
----@field max_height integer
+---@field max_height number
 
 ---@class super_markdown.Config
 ---@field enabled boolean
@@ -83,11 +83,11 @@ local defaults = {
     image = true,
     mermaid = true,
     math = true,
-    ---Max width for mermaid and standalone images. 0–1 = fraction of
-    ---window content width; >1 = columns.
-    max_width = 0.5,
-    ---Max image height in cells.
-    max_height = 40,
+    ---Cap for standalone images; mermaid renders at this width.
+    ---0–1 = fraction of window content width; >1 = columns.
+    max_width = 0.75,
+    ---Cap for images. 0–1 = fraction of window height; >1 = cells.
+    max_height = 1,
   },
 }
 
@@ -166,6 +166,31 @@ function M.max_cols(win_cols)
   local media = M.get().media
   local width = media and media.max_width
   return M.resolve_cols(win_cols, width)
+end
+
+---Resolve a height against a window height.
+---0–1 is a fraction; >1 is cells.
+---@param win_rows integer
+---@param height? number
+---@return integer
+function M.resolve_rows(win_rows, height)
+  if height == nil then
+    height = 1
+  end
+  win_rows = math.max(1, win_rows)
+  if height > 1 then
+    return math.max(1, math.min(win_rows, math.floor(height)))
+  end
+  return math.max(1, math.floor(win_rows * height))
+end
+
+---Resolve `media.max_height` against a window height.
+---@param win_rows integer
+---@return integer
+function M.max_rows(win_rows)
+  local media = M.get().media
+  local height = media and media.max_height
+  return M.resolve_rows(win_rows, height)
 end
 
 ---Resolve `table.max_width` against a window content width.

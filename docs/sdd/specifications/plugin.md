@@ -62,13 +62,16 @@ Render features SHALL be nested sections with `enabled` (default on):
 heading, code, quote, alert, list, checkbox, table, hr, frontmatter, link,
 codespan, strike, emphasis, emoji, and footnote. Heading SHALL also have
 `simple` (default false). Table SHALL have `max_width` (default 0.75 of
-window content width). Media SHALL keep `max_width` (default 0.5) for
-mermaid and standalone images, and SHALL include `image`, `mermaid`, and
-`math` (default on). `media.enabled` SHALL be a master switch for images,
-mermaid, math, and heading graphics.
+window content width). Media SHALL keep `max_width` (default 0.75) as a
+cap for standalone images and a render width for mermaid, `max_height`
+(default 1.0 of window height) as an image cap, and SHALL include `image`,
+`mermaid`, and `math` (default on).
+`media.enabled` SHALL be a master switch for images, mermaid, math, and
+heading graphics.
 
 Width values `0–1` SHALL be a window-content fraction; values `>1` SHALL
-be columns.
+be columns. Height values `0–1` SHALL be a window-height fraction; values
+`>1` SHALL be cells.
 
 Setup with options SHALL merge those options onto defaults. Setup with no
 options SHALL keep the current configuration and SHALL NOT reset to
@@ -92,3 +95,6 @@ defaults.
 | --- | --- |
 | 2026-09-11 | Initial spec from gfm-inline-render |
 | 2026-09-13 | Nested feature config; table vs media width; setup() keeps user config |
+| 2026-09-13 | media.max_width default 0.75 |
+| 2026-09-13 | media.max_height default 1.0 of window height |
+| 2026-09-13 | images cap to max size; mermaid still renders at max_width |

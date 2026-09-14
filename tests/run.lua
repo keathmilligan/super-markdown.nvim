@@ -126,11 +126,16 @@ eq(wrapped_hl[1], { { 'hello', 'Normal' } }, 'wrap keeps first-line highlight')
 eq(wrapped_hl[2], { { 'world', 'SuperMarkdownStrong' } }, 'wrap keeps second-line highlight')
 
 local cfg = require 'super-markdown.config'
-eq(cfg.max_cols(80), 40, 'media.max_width 0.5 of 80 cols')
+eq(cfg.max_cols(80), 60, 'media.max_width 0.75 of 80 cols')
 eq(cfg.table_cols(80), 60, 'table.max_width 0.75 of 80 cols')
 eq(cfg.max_cols(1), 1, 'max_cols at least 1')
-eq(cfg.get().media.max_width, 0.5, 'default media max_width')
+eq(cfg.get().media.max_width, 0.75, 'default media max_width')
+eq(cfg.get().media.max_height, 1, 'default media max_height is window fraction')
 eq(cfg.get().table.max_width, 0.75, 'default table max_width')
+eq(cfg.max_rows(84), 84, 'media.max_height 1.0 of 84 rows')
+eq(cfg.resolve_rows(80, 0.5), 40, 'resolve_rows fraction')
+eq(cfg.resolve_rows(80, 20), 20, 'resolve_rows absolute cells')
+eq(cfg.resolve_rows(30, 40), 30, 'absolute max_height capped to window')
 eq(cfg.get().media.image, true, 'default media.image')
 eq(cfg.get().heading.enabled, true, 'default heading enabled')
 eq(cfg.get().heading.simple, false, 'default heading simple off')
@@ -656,15 +661,15 @@ else
   local media = require 'super-markdown.media'
   local util = require 'super-markdown.util'
   local win_cols = util.content_width(buf, win)
-  eq(require('super-markdown.config').get().media.max_width, 0.5, 'default max width fraction')
+  eq(require('super-markdown.config').get().media.max_width, 0.75, 'default max width fraction')
   eq(
     media.job_max_cols({ kind = 'mermaid' }, buf, win),
-    math.max(1, math.floor(win_cols * 0.5)),
-    'mermaid uses 50% of window width'
+    math.max(1, math.floor(win_cols * 0.75)),
+    'mermaid uses 75% of window width'
   )
   eq(
     media.job_max_cols({ kind = 'image', standalone = true }, buf, win),
-    math.max(1, math.floor(win_cols * 0.5)),
+    math.max(1, math.floor(win_cols * 0.75)),
     'standalone images use max width'
   )
   ok(
@@ -678,6 +683,15 @@ else
   local c2, r2 = protocol.fit_to_width(100, 50, 40, 1)
   eq(r2, 1, 'mermaid fit_to_width respects max rows')
   ok(c2 <= 40, 'mermaid fit_to_width shrinks cols when height capped')
+  local nat_cols, nat_rows = protocol.fit_cells(100, 50, 40, 100)
+  local cell = protocol.size()
+  eq(nat_cols, math.max(1, math.ceil(100 / cell.cell_width)), 'fit_cells keeps natural width when under max')
+  eq(nat_rows, math.max(1, math.ceil(50 / cell.cell_height)), 'fit_cells keeps natural height when under max')
+  local down_cols = protocol.fit_cells(4000, 200, 40, 100)
+  ok(down_cols <= 40, 'fit_cells scales down when wider than max')
+  local tall_cols, tall_rows = protocol.fit_cells(200, 4000, 80, 20)
+  ok(tall_rows <= 20, 'fit_cells scales down when taller than max')
+  ok(tall_cols <= 80, 'fit_cells keeps width at or under max when height-capped')
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
     'PNG passthrough:',

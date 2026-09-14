@@ -111,7 +111,7 @@ kept until you leave the line or exit Insert mode. New images render then too.
 ## Configuration
 
 Each render feature is a nested section with `enabled` (default on). Width
-values `0–1` are a window fraction; `>1` are columns.
+and height values `0–1` are a window fraction; `>1` are columns or cells.
 
 ```lua
 require('super-markdown').setup {
@@ -144,8 +144,11 @@ require('super-markdown').setup {
     image = true,
     mermaid = true,
     math = true,
-    -- Mermaid and standalone images.
-    max_width = 0.5,
+    -- Cap for standalone images; mermaid renders at this width.
+    max_width = 0.75,
+    -- Cap for images. 1 = window height. Images that already fit are
+    -- not upscaled; taller ones keep aspect ratio and may be narrower.
+    max_height = 1,
   },
 }
 ```

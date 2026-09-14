@@ -175,9 +175,12 @@ local function place_png(buf, win, job, file)
     log.debug 'kitty graphics protocol not detected; skip image placement'
     return
   end
-  local cfg = config.get()
   local max_cols = M.job_max_cols(job, buf, win)
-  local max_rows = job.max_rows or cfg.media.max_height or 40
+  local max_rows = job.max_rows
+  if not max_rows then
+    local win_rows = vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_height(win) or 40
+    max_rows = config.max_rows(win_rows)
+  end
   file = vim.fn.fnamemodify(file, ':p')
   local pw, ph = protocol.png_size(file)
   if not pw then
@@ -185,7 +188,7 @@ local function place_png(buf, win, job, file)
     return
   end
   local cols, rows
-  if job.kind == 'mermaid' or job.standalone then
+  if job.kind == 'mermaid' then
     cols, rows = protocol.fit_to_width(pw, ph, max_cols, max_rows)
   elseif job.kind == 'heading' then
     -- Bitmap is already an integer number of cells. Do not fit_cells: that
@@ -198,6 +201,7 @@ local function place_png(buf, win, job, file)
       rows = max_rows
     end
   else
+    -- Images and math: natural size, scaled down only to fit the cap.
     cols, rows = protocol.fit_cells(pw, ph, max_cols, max_rows)
   end
   placements[buf] = placements[buf] or {}
@@ -521,8 +525,11 @@ function M.update(buf, win, jobs)
   local cell = protocol.size()
   local parts = {
     tostring(util.content_width(buf, win)),
+    tostring(vim.api.nvim_win_get_height(win)),
     tostring(cell.cell_width),
     tostring(cell.cell_height),
+    tostring(cfg.media.max_width),
+    tostring(cfg.media.max_height),
     vim.o.background,
     tostring(s.media_deferred_row),
   }
@@ -556,10 +563,11 @@ function M.update(buf, win, jobs)
   for _, job in ipairs(jobs) do
     if job.kind == 'image' then
       if job.row ~= s.media_deferred_row then
-        local img_px = bucket_px(pixel_width(win, M.job_max_cols(job, buf, win)))
-        local dest = image.cache_path(markdown_file, job.src, img_px)
+        -- Rasterize at intrinsic size (PNG passthrough / SVG at 96dpi).
+        -- Placement caps to max_width × max_height without upscaling.
+        local dest = image.cache_path(markdown_file, job.src)
         ensure_job(buf, job, dest, function(done)
-          return image.prepare(markdown_file, job.src, dest, img_px, done)
+          return image.prepare(markdown_file, job.src, dest, nil, done)
         end)
       end
     elseif job.kind == 'mermaid' and cfg.media.mermaid then

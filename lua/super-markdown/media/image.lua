@@ -17,10 +17,10 @@ end
 ---@param markdown_file string
 ---@param src string
 ---@param dest_png string
----@param pixel_width integer
+---@param _pixel_width? integer unused; SVG is rasterized at intrinsic 96dpi
 ---@param on_done fun(ok: boolean, err?: string, file?: string)
 ---@return vim.SystemObj|nil
-function M.prepare(markdown_file, src, dest_png, pixel_width, on_done)
+function M.prepare(markdown_file, src, dest_png, _pixel_width, on_done)
   if src:match('^https?://') then
     on_done(false, 'remote images are not fetched')
     return
@@ -37,7 +37,7 @@ function M.prepare(markdown_file, src, dest_png, pixel_width, on_done)
     return
   end
   if ext == 'svg' then
-    return convert.svg_to_png(abs, dest_png, pixel_width, function(ok, err)
+    return convert.svg_to_png(abs, dest_png, nil, function(ok, err)
       on_done(ok, err, dest_png)
     end)
   end

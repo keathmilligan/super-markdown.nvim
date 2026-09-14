@@ -39,10 +39,15 @@ source line. Inline images in a paragraph SHALL stay visible. When
 `media.image` is false, image jobs and standalone source-line hide SHALL
 NOT apply.
 
-Mermaid diagrams and standalone images SHALL fit `media.max_width`
-(default 50% of window content width; values `>1` are columns). Inline
-images SHALL fit the window width. Mermaid SHALL re-place on window resize.
-Tables SHALL use `table.max_width`, not `media.max_width`.
+Standalone images SHALL NOT exceed `media.max_width` (default 75% of
+window content width; values `>1` are columns) or `media.max_height`
+(default the window height; values `0–1` are a window-height fraction,
+`>1` are cells). Images that already fit those bounds SHALL keep their
+natural size and SHALL NOT be upscaled. Aspect ratio SHALL be kept, so a
+tall image MAY be narrower than `max_width` when height-capped. Inline
+images SHALL fit the window width the same way (cap, no upscale). Mermaid
+diagrams SHALL render at `media.max_width` and SHALL re-place on window
+resize. Tables SHALL use `table.max_width`, not `media.max_width`.
 
 `media.enabled` SHALL be a master switch: when false, images, mermaid,
 math, and heading graphics SHALL NOT run.
@@ -98,3 +103,6 @@ chrome.
 | 2026-09-12 | Unfocused headings render as cached Kitty graphics |
 | 2026-09-12 | Tables share media.max_width with mermaid and standalone images |
 | 2026-09-13 | media.image flag; tables use table.max_width; mermaid off is code chrome |
+| 2026-09-13 | media.max_width default 75% |
+| 2026-09-13 | media.max_height default window height so max_width is reachable |
+| 2026-09-13 | images cap to max_width/max_height; do not upscale |

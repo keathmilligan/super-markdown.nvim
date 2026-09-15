@@ -1,14 +1,14 @@
 ---
 feature: render
 created: 2026-09-11
-updated: 2026-09-13
+updated: 2026-09-15
 ---
 
 # Render
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-13 |
+| 2026-09-11 | 2026-09-15 |
 
 ## Purpose
 
@@ -62,6 +62,15 @@ unavailable.
 When the cursor is on an enabled or simple heading, chrome SHALL hide and
 the source SHALL show as normal markdown. Plugin heading highlights SHALL
 NOT apply; Tree-sitter / colorscheme heading highlights SHALL be used.
+
+Heading graphic placement SHALL depend only on buffer structure, not cursor
+position. Focusing a heading SHALL hide only that heading's graphic; moving
+the cursor across neighboring headings, images, Mermaid blocks, or body lines
+SHALL NOT move other heading graphics to different host rows.
+
+Packed consecutive headings SHALL preserve source order while unfocused. In
+a gapless run, focusing a later heading MAY leave a preceding graphic below
+the focused source until the cursor leaves the run.
 
 If full heading mode cannot use graphics, ATX heading markers SHALL be
 concealed, the title SHALL use plugin heading highlights, and h1 and h2
@@ -158,7 +167,9 @@ buffer.
 Virt-text and conceal used as chrome SHALL hide on the cursor line so the
 source is editable. `k` / Up SHALL NOT stick on a concealed media host line
 (mermaid, display math, standalone image, heading) when the graphic extends
-above the window.
+above the window. `k` / Up SHALL still land on a heading source, and inserting
+a newline on a focused heading SHALL NOT move the cursor past a following
+heading graphic.
 
 ## Change history
 
@@ -168,3 +179,4 @@ above the window.
 | 2026-09-12 | Unfocused headings are graphics; focused headings show source |
 | 2026-09-12 | Wide tables wrap cell text and pad sibling cells to row height |
 | 2026-09-13 | Per-feature flags; heading simple/off; tables use table.max_width |
+| 2026-09-15 | Stabilized heading graphic placement across cursor movement |

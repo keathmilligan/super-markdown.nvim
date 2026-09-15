@@ -845,7 +845,33 @@ else
     ok(not focused_hl, 'focused heading has no SuperMarkdownH* highlight')
     local media = require 'super-markdown.media'
     local host, above = media.heading_host(buf, { row = 2, end_row = 4 })
-    eq({ host, above }, { 1, false }, 'heading graphic hosts on the previous line like an image')
+    eq({ host, above }, { 4, true }, 'heading graphic hosts above the first structural row after its source')
+
+    apply.apply(buf, plan.marks, 4)
+    local body_host = { media.heading_host(buf, { row = 2, end_row = 4 }) }
+    apply.apply(buf, plan.marks, 1)
+    local paragraph_host = { media.heading_host(buf, { row = 2, end_row = 4 }) }
+    eq(paragraph_host, body_host, 'heading host does not move when the preceding paragraph is focused')
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      '# Heading',
+      '![image](x.png)',
+      '```mermaid',
+      '```',
+      'body',
+    })
+    local structural_sources = {
+      { key = 'heading-source', row = 0, col = 0, opts = {}, heading_source = true },
+      { key = 'image-source', row = 1, col = 0, opts = {}, image_source = true },
+      { key = 'mermaid-source', row = 2, col = 0, opts = {}, mermaid_source = true },
+      { key = 'mermaid-anchor', row = 3, col = 0, opts = {}, mermaid_anchor = true },
+    }
+    apply.apply(buf, structural_sources, 1)
+    local image_focus_host = { media.heading_host(buf, { row = 0, end_row = 1 }) }
+    apply.apply(buf, structural_sources, 2)
+    local mermaid_focus_host = { media.heading_host(buf, { row = 0, end_row = 1 }) }
+    eq(image_focus_host, { 4, true }, 'heading host skips media source rows')
+    eq(mermaid_focus_host, image_focus_host, 'heading host does not move when another media source is focused')
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
       '# Editing',
@@ -860,6 +886,12 @@ else
         { host, above },
         { 2, true },
         'following heading graphic is not attached to the line being edited'
+      )
+      apply.apply(buf, plan.marks, 2)
+      eq(
+        { media.heading_host(buf, { row = 1, end_row = 2 }) },
+        { host, above },
+        'following heading host does not move when another heading is focused'
       )
     else
       ok(false, 'parse consecutive headings')

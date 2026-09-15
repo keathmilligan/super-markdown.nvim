@@ -117,7 +117,7 @@ event('ModeChanged')
 refresh()
 eq(vim.tbl_count(terminal), 2, 'refresh displays only the current image and heading')
 local mark = apply.state(buf).media_marks['heading:5']
-eq(mark.row, 4, 'heading preview is anchored above its updated source row')
+eq(mark.row, 6, 'heading preview is anchored above the structural row after its updated source')
 eq(mark.block_range, { 5, 5 }, 'heading cursor visibility uses the updated source range')
 
 -- Splitting the start of an image line moves both its source and its frozen
@@ -162,7 +162,11 @@ mode = 'n'
 event('ModeChanged')
 refresh()
 eq(vim.tbl_count(terminal), 2, 'deleting preceding lines leaves one preview per source')
-eq(apply.state(buf).media_marks['heading:5'].row, 4, 'heading moves up after preceding lines are deleted')
+eq(
+  apply.state(buf).media_marks['heading:5'].row,
+  6,
+  'heading returns to the structural after-host when preceding lines are deleted'
+)
 
 attach.set_buf(buf, false)
 mode = 'n'

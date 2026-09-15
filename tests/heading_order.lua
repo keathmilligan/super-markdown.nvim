@@ -99,19 +99,46 @@ local function scenario(lines, math_row, install_row, completion)
     pending[title](true)
   end
   local before = transmissions
+  local math_mark = apply.state(buf).media_marks['heading:' .. math_row]
+  local install_mark = apply.state(buf).media_marks['heading:' .. install_row]
+  local math_host = { math_mark.row, math_mark.opts.virt_lines_above }
+  local install_host = { install_mark.row, install_mark.opts.virt_lines_above }
   ordered('PREVIEW Math', 'PREVIEW Install', 'headings follow source order regardless of completion order')
   cursor(math_row)
   ordered('### Math', 'PREVIEW Install', 'the next preview stays below the heading being edited')
-  local install_mark = apply.state(buf).media_marks['heading:' .. install_row]
   eq(install_mark ~= nil and install_mark.row ~= math_row, true, 'next heading graphic is not hosted on the edited line')
+  eq(
+    { math_mark.row, math_mark.opts.virt_lines_above },
+    math_host,
+    'Math host stays fixed when Math is focused'
+  )
+  eq(
+    { install_mark.row, install_mark.opts.virt_lines_above },
+    install_host,
+    'Install host stays fixed when Math is focused'
+  )
   cursor(install_row)
-  ordered('PREVIEW Math', '## Install', 'the preceding preview stays above the heading being edited')
+  if install_row == math_row + 1 then
+    ordered('## Install', 'PREVIEW Math', 'a gapless preceding preview stays on its stable host while editing')
+  else
+    ordered('PREVIEW Math', '## Install', 'a separated preceding preview keeps its structural order while editing')
+  end
+  eq(
+    { math_mark.row, math_mark.opts.virt_lines_above },
+    math_host,
+    'Math host stays fixed when Install is focused'
+  )
+  eq(
+    { install_mark.row, install_mark.opts.virt_lines_above },
+    install_host,
+    'Install host stays fixed when Install is focused'
+  )
   cursor(#lines - 1)
   ordered('PREVIEW Math', 'PREVIEW Install', 'leaving a heading restores source order')
   cached = true
   attach.refresh(buf)
   ordered('PREVIEW Math', 'PREVIEW Install', 'a cached refresh preserves heading order')
-  eq(transmissions, before, 'cursor-dependent layout does not retransmit heading images')
+  eq(transmissions, before, 'stable cursor layout does not retransmit heading images')
 end
 
 for _, completion in ipairs { { 'Math', 'Install' }, { 'Install', 'Math' } } do

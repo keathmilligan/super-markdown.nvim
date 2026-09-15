@@ -145,55 +145,38 @@ local function pack_virt(marks)
   }
 end
 
----Place heading graphics on a visible neighbor, skipping concealed sources.
----This is cursor-dependent: revealing a heading changes its neighbors' hosts.
+---Place heading graphics on a structural neighbor. Media source rows are never
+---hosts, even while focused, so cursor movement cannot move other graphics.
 ---@param buf integer
 ---@param job table
 ---@return integer row
 ---@return boolean above
 function M.heading_host(buf, job)
   local s = M.state(buf)
-  local function hidden(row)
-    if row < 0 then
-      return true
+  local unsuitable = {}
+  for _, mark in ipairs(s.plan or {}) do
+    if mark.heading_source or mark.image_source or mark.mermaid_source or mark.mermaid_anchor then
+      unsuitable[mark.row] = true
     end
-    for _, m in ipairs(s.plan or {}) do
-      if m.row == row then
-        local in_block = m.block_range and s.cursor_row >= m.block_range[1] and s.cursor_row <= m.block_range[2]
-        if m.image_source and s.cursor_row ~= row then
-          return true
-        end
-        if (m.mermaid_source or m.mermaid_anchor or m.heading_source) and not in_block then
-          return true
-        end
-      end
-    end
-    return false
   end
-  local host = job.row - 1
-  while host >= 0 and hidden(host) do
-    host = host - 1
-  end
-  -- virt_lines below the cursor line make <CR> jump past the graphic.
-  if host >= 0 and host ~= s.cursor_row then
-    return host, false
-  end
+
+  -- Prefer virt_lines above the following structural row. This avoids putting
+  -- them below the cursor and gives consecutive headings one stable host.
   local after = job.end_row or (job.row + 1)
   local line_count = vim.api.nvim_buf_line_count(buf)
-  while after < line_count and hidden(after) do
+  while after < line_count and unsuitable[after] do
     after = after + 1
-  end
-  -- A following heading must stay below the source being edited.
-  if job.row > s.cursor_row then
-    while after < line_count and after == s.cursor_row do
-      after = after + 1
-      while after < line_count and hidden(after) do
-        after = after + 1
-      end
-    end
   end
   if after < line_count then
     return after, true
+  end
+
+  local host = job.row - 1
+  while host >= 0 and unsuitable[host] do
+    host = host - 1
+  end
+  if host >= 0 then
+    return host, false
   end
   return job.row, true
 end

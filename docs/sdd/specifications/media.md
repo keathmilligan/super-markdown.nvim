@@ -1,14 +1,14 @@
 ---
 feature: media
 created: 2026-09-11
-updated: 2026-09-13
+updated: 2026-09-15
 ---
 
 # Media
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-13 |
+| 2026-09-11 | 2026-09-15 |
 
 ## Purpose
 
@@ -79,9 +79,11 @@ source.
 
 Unfocused headings in full heading mode SHALL render as Kitty graphics
 using the same PNG protocol and `rsvg-convert` path as other SVG media.
-The graphic SHALL appear before the source. Background SHALL be transparent
-so editor `Normal` shows through. Heading graphics SHALL NOT run when
-heading is disabled or simple.
+The graphic SHALL appear where its concealed source was, before following
+content. Its virtual-line host SHALL be selected independently of cursor
+position and SHALL NOT be a heading, image, or Mermaid source row. Background
+SHALL be transparent so editor `Normal` shows through. Heading graphics SHALL
+NOT run when heading is disabled or simple.
 
 The graphic SHALL be sized like GitHub markdown (`h1` 2em, `h2` 1.5em, `h3`
 1.25em, `h4` 1em, `h5` 0.875em, `h6` 0.85em). `1em` is the terminal cell
@@ -106,3 +108,4 @@ chrome.
 | 2026-09-13 | media.max_width default 75% |
 | 2026-09-13 | media.max_height default window height so max_width is reachable |
 | 2026-09-13 | images cap to max_width/max_height; do not upscale |
+| 2026-09-15 | Heading virtual-line hosts are structural and cursor-independent |

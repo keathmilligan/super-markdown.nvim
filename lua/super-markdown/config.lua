@@ -68,7 +68,7 @@ local defaults = {
     enabled = true,
     ---Max width for tables. 0–1 = fraction of window content width;
     --->1 = columns.
-    max_width = 0.75,
+    max_width = 1,
   },
   hr = { enabled = true },
   frontmatter = { enabled = true },
@@ -85,7 +85,7 @@ local defaults = {
     math = true,
     ---Cap for standalone images; mermaid renders at this width.
     ---0–1 = fraction of window content width; >1 = columns.
-    max_width = 0.75,
+    max_width = 1,
     ---Cap for images. 0–1 = fraction of window height; >1 = cells.
     max_height = 1,
   },
@@ -200,7 +200,7 @@ function M.table_cols(win_cols)
   local tbl = M.get().table
   local width = tbl and tbl.max_width
   if width == nil then
-    width = 0.75
+    width = 1
   end
   return M.resolve_cols(win_cols, width)
 end

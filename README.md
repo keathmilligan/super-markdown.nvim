@@ -133,7 +133,7 @@ require('super-markdown').setup {
   checkbox = { enabled = true },
   table = {
     enabled = true,
-    max_width = 0.75,
+    max_width = 1,
   },
   hr = { enabled = true },
   frontmatter = { enabled = true },
@@ -149,7 +149,7 @@ require('super-markdown').setup {
     mermaid = true,
     math = true,
     -- Cap for standalone images; mermaid renders at this width.
-    max_width = 0.75,
+    max_width = 1,
     -- Cap for images. 1 = window height. Images that already fit are
     -- not upscaled; taller ones keep aspect ratio and may be narrower.
     max_height = 1,

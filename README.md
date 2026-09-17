@@ -16,16 +16,17 @@ Inline GitHub-Flavored Markdown rendering for Neovim.
 
 - Neovim `>= 0.11` (developed on 0.12)
 - Tree-sitter parsers `markdown` and `markdown_inline`
-- Ghostty or Kitty for inline images
+- Tested with Ghostty and Kitty, other terminals that fully support Kitty graphics may work as well
 - [`rsvg-convert`](https://gitlab.gnome.org/GNOME/librsvg) for SVG / Mermaid / math
 - Node.js, then `npm install` in `scripts/` for Mermaid (and math)
 - ImageMagick `magick` only for JPEG/GIF/WebP
 
-### tmux
+### Multiplexer support
 
-Graphics work in tmux 3.3+ when the outer terminal is Ghostty or Kitty.
-The plugin enables pane-local `allow-passthrough all`. Nested tmux,
-Zellij, GNU screen, and WezTerm are not supported.
+- `tmux` - supported via DCS pass-through
+- `herdr` - supported using herdr's own Kitty graphics support, performance is poor
+- `zellij` - Zellij lacks support for unicode placeholder image placement which this plugin requires. 
+  A [pull request](https://github.com/zellij-org/zellij/pull/5531) in Zellij is open for this.
 
 ## Features
 

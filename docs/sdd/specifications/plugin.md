@@ -1,14 +1,14 @@
 ---
 feature: plugin
 created: 2026-09-11
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 # Plugin
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-16 |
+| 2026-09-11 | 2026-09-17 |
 
 ## Purpose
 
@@ -62,8 +62,10 @@ Render features SHALL be nested sections with `enabled` (default on):
 heading, code, quote, alert, list, checkbox, table, hr, frontmatter, link,
 codespan, strike, emphasis, emoji, and footnote. Heading SHALL also have
 `simple` (default false). Table SHALL have `max_width` (default 0.75 of
-window content width). Media SHALL keep `max_width` (default 0.75) as a
-cap for standalone images and a render width for mermaid, `max_height`
+window content width). List SHALL have `max_width` (default 1.0 of window
+content width) as a wrap cap for list-item source lines. Media SHALL keep
+`max_width` (default 0.75) as a cap for standalone images and a render
+width for mermaid, `max_height`
 (default 1.0 of window height) as an image cap, and SHALL include `image`,
 `mermaid`, and `math` (default on).
 `media.enabled` SHALL be a master switch for images, mermaid, math, and
@@ -101,3 +103,4 @@ passthrough is enabled, and the outer terminal.
 | 2026-09-13 | media.max_height default 1.0 of window height |
 | 2026-09-13 | images cap to max size; mermaid still renders at max_width |
 | 2026-09-16 | Health reports tmux version, passthrough, and outer terminal |
+| 2026-09-17 | list.max_width wrap cap (default window width) |

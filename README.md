@@ -132,7 +132,12 @@ require('super-markdown').setup {
   code = { enabled = true },
   quote = { enabled = true },
   alert = { enabled = true },
-  list = { enabled = true },
+  list = {
+    enabled = true,
+    -- Cap for wrapping list items. Lines that already fit are left
+    -- alone; longer ones hang under the item text (GitHub-style).
+    max_width = 1,
+  },
   checkbox = { enabled = true },
   table = {
     enabled = true,

@@ -132,6 +132,8 @@ eq(cfg.max_cols(1), 1, 'max_cols at least 1')
 eq(cfg.get().media.max_width, 0.75, 'default media max_width')
 eq(cfg.get().media.max_height, 1, 'default media max_height is window fraction')
 eq(cfg.get().table.max_width, 0.75, 'default table max_width')
+eq(cfg.get().list.max_width, 1, 'default list max_width')
+eq(cfg.list_cols(80), 80, 'list.max_width 1.0 of 80 cols')
 eq(cfg.max_rows(84), 84, 'media.max_height 1.0 of 84 rows')
 eq(cfg.resolve_rows(80, 0.5), 40, 'resolve_rows fraction')
 eq(cfg.resolve_rows(80, 20), 20, 'resolve_rows absolute cells')
@@ -159,6 +161,16 @@ do
   local abs = cfg.table_cols(80)
   cfg.get().table.max_width = prev
   eq(abs, 20, 'absolute table.max_width is columns')
+end
+do
+  local prev = cfg.get().list.max_width
+  cfg.get().list.max_width = 20
+  local abs = cfg.list_cols(80)
+  cfg.get().list.max_width = 100
+  local capped = cfg.list_cols(80)
+  cfg.get().list.max_width = prev
+  eq(abs, 20, 'absolute list.max_width is columns')
+  eq(capped, 80, 'absolute list.max_width capped to window')
 end
 do
   local orig = vim.deepcopy(cfg.get())
@@ -1067,20 +1079,180 @@ else
     end
   end)
 
-  with_cfg({ list = { enabled = false } }, function()
+  local function list_mark(plan, row)
+    local first, extra
+    for _, m in ipairs(plan.marks) do
+      if m.key == string.format('lov:%d', row) then
+        first = m
+      elseif m.key:match('^lov:' .. row .. ':%d+$') or (m.key == string.format('lov:%d', row) and m.opts.virt_lines) then
+        extra = extra or m
+      end
+    end
+    return first, extra
+  end
+
+  local old_wrap = vim.wo[win].wrap
+  local old_w = vim.api.nvim_win_get_width(win)
+  vim.wo[win].wrap = false
+  pcall(vim.api.nvim_win_set_width, win, 80)
+  local words = ('word '):rep(12)
+  with_cfg({ list = { max_width = 40 } }, function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      '- short item',
+      '- ' .. words,
+      '1. ' .. words,
+      '- [x] ' .. words,
+      '- parent',
+      '  - ' .. words,
+      '> - ' .. words,
+      '- See ![img](x.png) ' .. words,
+      '- first line ' .. words,
+      '  continuation ' .. words,
+    })
+    plan = parse.parse(buf, win, 50)
+    if not plan then
+      ok(false, 'parse list wrap')
+      return
+    end
+    local short
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^lov:' and m.row == 0 then
+        short = true
+      end
+    end
+    ok(not short, 'short list item is not wrapped')
+    local li
+    for _, m in ipairs(plan.marks) do
+      if m.key == 'li:0' then
+        li = m
+      end
+    end
+    ok(li ~= nil, 'short list item keeps bullet chrome')
+
+    local ul = select(1, list_mark(plan, 1))
+    ok(ul ~= nil, 'long unordered item wraps')
+    if ul then
+      ok(ul.hide_on_cursor, 'list wrap hides on cursor line')
+      local first = chunks_text(ul.opts.virt_text)
+      ok(first:find('•', 1, true) == 1, 'unordered wrap starts with bullet')
+      ok(not first:find(vim.trim(words), 1, true), 'long unordered text wraps off the first line')
+      local extra = ul.opts.virt_lines and ul.opts.virt_lines[1]
+      ok(extra ~= nil, 'unordered wrap grows downward')
+      if extra then
+        local cont = chunks_text(extra)
+        eq(cont:match('^(%s*)'), '  ', 'unordered wrap hangs under item text')
+      end
+    end
+
+    local ol = select(1, list_mark(plan, 2))
+    ok(ol ~= nil, 'long ordered item wraps')
+    if ol then
+      local first = chunks_text(ol.opts.virt_text)
+      ok(first:find('1.', 1, true) == 1, 'ordered wrap keeps marker')
+      local extra = ol.opts.virt_lines and ol.opts.virt_lines[1]
+      ok(extra ~= nil, 'ordered wrap grows downward')
+      if extra then
+        eq(chunks_text(extra):match('^(%s*)'), '   ', 'ordered wrap hangs under item text')
+      end
+    end
+
+    local task = select(1, list_mark(plan, 3))
+    ok(task ~= nil, 'long task item wraps')
+    if task then
+      local extra = task.opts.virt_lines and task.opts.virt_lines[1]
+      ok(extra ~= nil, 'task wrap grows downward')
+      if extra then
+        local glyph_w = vim.fn.strdisplaywidth('󰱒')
+        local hang = string.rep(' ', glyph_w + 1)
+        eq(chunks_text(extra):match('^(%s*)'), hang, 'task wrap hangs under item text')
+      end
+    end
+
+    local nested = select(1, list_mark(plan, 5))
+    ok(nested ~= nil, 'nested long item wraps')
+    if nested then
+      local extra = nested.opts.virt_lines and nested.opts.virt_lines[1]
+      ok(extra ~= nil, 'nested wrap grows downward')
+      if extra then
+        eq(chunks_text(extra):match('^(%s*)'), '    ', 'nested wrap keeps indent and hangs under text')
+      end
+    end
+
+    local quoted = select(1, list_mark(plan, 6))
+    ok(quoted ~= nil, 'quoted long item wraps')
+    if quoted then
+      local extra = quoted.opts.virt_lines and quoted.opts.virt_lines[1]
+      ok(extra ~= nil, 'quoted wrap grows downward')
+      if extra then
+        local cont = chunks_text(extra)
+        ok(cont:find('▎', 1, true) == 1, 'quoted wrap keeps left bar on continuation')
+      end
+    end
+
+    local img
+    for _, m in ipairs(plan.marks) do
+      if m.key:match '^lov:' and m.row == 7 then
+        img = true
+      end
+    end
+    local has_img = false
+    for _, job in ipairs(plan.media) do
+      if job.kind == 'image' and job.row == 7 then
+        has_img = true
+      end
+    end
+    ok(has_img, 'inline image job on list line')
+    ok(not img, 'list line with media is not wrap-overlaid')
+
+    local cont_line = select(1, list_mark(plan, 9))
+    ok(cont_line ~= nil, 'markdown continuation line wraps independently')
+  end)
+
+  with_cfg({ list = { enabled = false, max_width = 40 } }, function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      '- item',
+      '- ' .. words,
+    })
     plan = parse.parse(buf, win, 50)
     if plan then
-      local n = 0
+      local n, wrapped = 0, 0
       for _, m in ipairs(plan.marks) do
         if m.key:match '^li:' then
           n = n + 1
+        elseif m.key:match '^lov:' then
+          wrapped = wrapped + 1
         end
       end
       eq(n, 0, 'list disabled emits no bullet marks')
+      eq(wrapped, 0, 'list disabled does not wrap')
     else
       ok(false, 'parse list disabled')
     end
   end)
+  vim.wo[win].wrap = old_wrap
+  pcall(vim.api.nvim_win_set_width, win, old_w)
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '# Title One',
+    '',
+    'Setext',
+    '======',
+    '- item',
+    '- [ ] task',
+    '> quote',
+    '',
+    '> [!NOTE]',
+    '> note body',
+    '',
+    '```lua',
+    'print(1)',
+    '```',
+    '',
+    '```mermaid',
+    'flowchart LR',
+    '  A-->B',
+    '```',
+  })
 
   with_cfg({ alert = { enabled = false } }, function()
     plan = parse.parse(buf, win, 50)

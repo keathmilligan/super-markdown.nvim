@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" role="img">
+  <title>List wrap: hanging indent versus column-zero wrap</title>
+  <desc>
+    Two schematic editor panes. The left pane shows a long list item wrapping
+    back to the left edge. The right pane shows the same item wrapping so
+    continuation lines line up with the start of the item text after the
+    marker, matching GitHub list layout.
+  </desc>
+  <style>
+    .frame { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+    .label { font: 600 13px ui-sans-serif, system-ui, sans-serif; fill: #1f2328; }
+    .mono { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #1f2328; }
+    .muted { fill: #59636e; }
+    .guide { stroke: #0969da; stroke-width: 1; stroke-dasharray: 3 3; }
+    .caption { font: 11px ui-sans-serif, system-ui, sans-serif; fill: #59636e; }
+  </style>
+
+  <text class="label" x="24" y="28">Today</text>
+  <text class="caption" x="24" y="46">Neovim wrap continues at column 0</text>
+  <rect class="frame" x="24" y="58" width="340" height="250" rx="6"/>
+  <text class="mono" x="40" y="92">• Short item stays one line</text>
+  <text class="mono" x="40" y="128">• A long unordered item wraps</text>
+  <text class="mono muted" x="40" y="148">when it exceeds the max width</text>
+  <text class="mono" x="40" y="184">1. Ordered items wrap the same</text>
+  <text class="mono muted" x="40" y="204">way, flush to the left edge</text>
+  <text class="caption" x="40" y="280">Continuation starts under the bullet</text>
+
+  <text class="label" x="396" y="28">Target</text>
+  <text class="caption" x="396" y="46">Wrap under the item text, GitHub-style</text>
+  <rect class="frame" x="396" y="58" width="340" height="250" rx="6"/>
+  <line class="guide" x1="430" y1="72" x2="430" y2="220"/>
+  <text class="mono" x="412" y="92">• Short item stays one line</text>
+  <text class="mono" x="412" y="128">• A long unordered item wraps</text>
+  <text class="mono muted" x="430" y="148">when it exceeds the max width</text>
+  <text class="mono" x="412" y="184">1. Ordered items wrap the same</text>
+  <text class="mono muted" x="430" y="204">way, under the item text</text>
+  <text class="caption" x="412" y="280">Hanging indent at start of item text</text>
+</svg>

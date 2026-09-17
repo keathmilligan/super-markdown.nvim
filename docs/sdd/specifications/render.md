@@ -1,14 +1,14 @@
 ---
 feature: render
 created: 2026-09-11
-updated: 2026-09-15
+updated: 2026-09-17
 ---
 
 # Render
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-15 |
+| 2026-09-11 | 2026-09-17 |
 
 ## Purpose
 
@@ -36,6 +36,7 @@ NOT be applied.
 - `quote` off SHALL NOT prevent alerts when `alert` is on.
 - `checkbox` off SHALL skip task glyphs; the list marker SHALL follow
   `list`.
+- `list` off SHALL skip bullets and list wrap.
 
 ### Headings
 
@@ -114,6 +115,33 @@ Unordered list markers SHALL render as a bullet. Task-list checkboxes SHALL
 replace the list marker and `[ ]` / `[x]` with unchecked / checked glyphs.
 The leading `- ` before a checkbox SHALL NOT remain visible.
 
+When a list-item source line is wider than `list.max_width` (default window
+content width; values `>1` are columns), the item SHALL wrap on word
+boundaries. Wrapped continuation lines SHALL indent so they align with the
+start of the item text after the marker, checkbox, or existing continuation
+indent (GitHub hanging indent). Nested items SHALL keep their source indent
+and hang from that item’s text column. Extra wrapped lines SHALL use
+`virt_lines`, or overlay the source line's wrap continuations when those
+already exist. A line that already fits SHALL NOT be wrap-overlaid.
+
+The cursor line SHALL show the source list line. Lines that host inline
+image or math media SHALL NOT be wrap-overlaid. List items inside quotes
+or alerts SHALL keep the left bar on wrapped continuations.
+
+#### Short item unchanged
+
+- GIVEN an unordered list item whose source line fits `list.max_width`
+- WHEN it is rendered unfocused
+- THEN it SHALL keep bullet chrome and SHALL NOT gain wrap overlay
+
+#### Long item hanging indent
+
+- GIVEN an unordered, ordered, or task list item wider than
+  `list.max_width`
+- WHEN it is rendered unfocused
+- THEN wrapped lines SHALL hang under the item text after the marker or
+  checkbox
+
 ### Quotes and alerts
 
 Blockquote `>` SHALL conceal to a left bar. GitHub alert markers
@@ -180,3 +208,4 @@ heading graphic.
 | 2026-09-12 | Wide tables wrap cell text and pad sibling cells to row height |
 | 2026-09-13 | Per-feature flags; heading simple/off; tables use table.max_width |
 | 2026-09-15 | Stabilized heading graphic placement across cursor movement |
+| 2026-09-17 | List items wrap with GitHub hanging indent |

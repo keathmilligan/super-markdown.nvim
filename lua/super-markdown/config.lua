@@ -11,6 +11,10 @@ local M = {}
 ---@field enabled boolean
 ---@field max_width number
 
+---@class super_markdown.ListConfig
+---@field enabled boolean
+---@field max_width number
+
 ---@class super_markdown.MediaConfig
 ---@field enabled boolean
 ---@field image boolean
@@ -30,7 +34,7 @@ local M = {}
 ---@field code super_markdown.Feature
 ---@field quote super_markdown.Feature
 ---@field alert super_markdown.Feature
----@field list super_markdown.Feature
+---@field list super_markdown.ListConfig
 ---@field checkbox super_markdown.Feature
 ---@field table super_markdown.TableConfig
 ---@field hr super_markdown.Feature
@@ -62,7 +66,12 @@ local defaults = {
   code = { enabled = true },
   quote = { enabled = true },
   alert = { enabled = true },
-  list = { enabled = true },
+  list = {
+    enabled = true,
+    ---Max width for wrapping list items. 0–1 = fraction of window
+    ---content width; >1 = columns. Lines that already fit are not wrapped.
+    max_width = 1,
+  },
   checkbox = { enabled = true },
   table = {
     enabled = true,
@@ -199,6 +208,18 @@ end
 function M.table_cols(win_cols)
   local tbl = M.get().table
   local width = tbl and tbl.max_width
+  if width == nil then
+    width = 1
+  end
+  return M.resolve_cols(win_cols, width)
+end
+
+---Resolve `list.max_width` against a window content width.
+---@param win_cols integer
+---@return integer
+function M.list_cols(win_cols)
+  local list = M.get().list
+  local width = list and list.max_width
   if width == nil then
     width = 1
   end

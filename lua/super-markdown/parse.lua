@@ -1,6 +1,7 @@
 local config = require 'super-markdown.config'
 local emoji = require 'super-markdown.emoji'
 local heading_media = require 'super-markdown.media.heading'
+local mdlist = require 'super-markdown.list'
 local mdtable = require 'super-markdown.table'
 local util = require 'super-markdown.util'
 
@@ -76,6 +77,8 @@ end
 ---@field cells { row: integer, col: integer, end_col: integer }[]
 ---@field pads table<string, { row: integer, col: integer, n: integer }>
 ---@field tables table[]
+---@field lists table[]
+---@field quote_hl table<integer, { bar: string, text: string }>
 ---@field width integer
 ---@field wrap boolean
 local ctx ---@type super_markdown.ParseCtx|nil
@@ -409,6 +412,13 @@ local function quote_or_alert(buf, node, marks)
     local ln = line(buf, r)
     local bar_hl = atype and alert_hl(aname, 'Bar') or 'SuperMarkdownQuoteBar'
     local gt = ln:find('>')
+    if ctx then
+      ctx.quote_hl = ctx.quote_hl or {}
+      ctx.quote_hl[r] = {
+        bar = bar_hl,
+        text = atype and alert_hl(aname) or 'SuperMarkdownQuote',
+      }
+    end
     if gt then
       add(marks, {
         key = string.format('qmark:%d', r),
@@ -456,22 +466,29 @@ local function list_item(buf, node, marks)
   end
   local row = node:range()
   local ln = line(buf, row)
-  if ln:match('%[[ xX]%]') and config.feature 'checkbox' then
-    return
+  local is_task = ln:match '%[[ xX]%]' and config.feature 'checkbox'
+  if not is_task then
+    local col = ln:find '[-*+]' or ln:find '%d+%.'
+    local bullet = ln:match '^%s*([-*+])'
+    if bullet and col then
+      add(marks, {
+        key = string.format('li:%d', row),
+        row = row,
+        col = col - 1,
+        opts = { end_col = col, conceal = '•', hl_group = 'SuperMarkdownListIcon' },
+      })
+    end
+    local s = ln
+    while s:find '^%s*>' do
+      s = s:gsub('^%s*> ?', '', 1)
+    end
+    if s:match '^%s*[-*+]' then
+      mdlist.collect(ctx, { row = row, kind = 'ul' })
+    elseif s:match '^%s*%d+[.)]' then
+      mdlist.collect(ctx, { row = row, kind = 'ol' })
+    end
   end
-  local col = ln:find('[-*+]') or ln:find('%d+%.')
-  if not col then
-    return
-  end
-  local bullet = ln:match('^%s*([-*+])')
-  if bullet then
-    add(marks, {
-      key = string.format('li:%d', row),
-      row = row,
-      col = col - 1,
-      opts = { end_col = col, conceal = '•', hl_group = 'SuperMarkdownListIcon' },
-    })
-  end
+  mdlist.collect_continuations(ctx, buf, node, row)
 end
 
 ---@param buf integer
@@ -497,6 +514,9 @@ local function task(buf, node, marks, checked)
       hl_group = checked and 'SuperMarkdownCheckboxChecked' or 'SuperMarkdownCheckbox',
     },
   })
+  if config.feature 'list' then
+    mdlist.collect(ctx, { row = row, kind = 'task', checked = checked })
+  end
 end
 
 local function table_block(buf, node, marks)
@@ -950,7 +970,17 @@ function M.parse(buf, win, overscan)
   if win ~= 0 and vim.api.nvim_win_is_valid(win) then
     wrap = vim.wo[win].wrap
   end
-  ctx = { buf = buf, marks = marks, cells = {}, pads = {}, tables = {}, width = width, wrap = wrap }
+  ctx = {
+    buf = buf,
+    marks = marks,
+    cells = {},
+    pads = {},
+    tables = {},
+    lists = {},
+    quote_hl = {},
+    width = width,
+    wrap = wrap,
+  }
 
   local function walk(langtree)
     local trees = langtree:trees()
@@ -1016,6 +1046,9 @@ function M.parse(buf, win, overscan)
   math_blocks(buf, srow, erow, code_ranges, media)
   flush_pads()
   flush_tables()
+  if ctx then
+    mdlist.flush(ctx, media)
+  end
   ctx = nil
   return { marks = marks, media = media, range = { srow, erow } }
 end

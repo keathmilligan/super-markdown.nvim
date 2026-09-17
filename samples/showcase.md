@@ -42,6 +42,10 @@ Emoji shortcodes: :rocket: :sparkles: :file_folder: :memo: :warning:
    - Unordered
    - Another
 3. Back to ordered
+4. A long ordered item wraps under the item text when it exceeds the window, so the continuation lines up with the words after the marker instead of column zero.
+
+- Short unordered item
+- A long unordered item also wraps with a hanging indent so wrapped lines align with the beginning of the item text, matching GitHub list layout. Lines that already fit the max width are not wrapped.
 
 ### Task list
 

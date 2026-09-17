@@ -34,6 +34,10 @@ package.loaded.ffi = setmetatable({
 }, { __index = ffi })
 
 local protocol = require 'super-markdown.media.protocol'
+local real_tmux = protocol.tmux
+protocol.tmux = function()
+  return nil
+end
 eq(protocol.size().cell_height, 18, 'unavailable terminal uses a temporary fallback')
 available = true
 eq(protocol.size().cell_height, 32, 'failed query is retried; partial terminal row is excluded')
@@ -49,6 +53,106 @@ for i = 1, 3 do
     'resize remeasures without an FFI redeclaration failure'
   )
 end
+
+local env = {
+  TMUX = vim.env.TMUX,
+  TERM = vim.env.TERM,
+  TERM_PROGRAM = vim.env.TERM_PROGRAM,
+  KITTY_WINDOW_ID = vim.env.KITTY_WINDOW_ID,
+  GHOSTTY_RESOURCES_DIR = vim.env.GHOSTTY_RESOURCES_DIR,
+}
+local function restore_env()
+  for k, v in pairs(env) do
+    vim.env[k] = v
+  end
+end
+local function clear_term_env()
+  vim.env.TMUX = nil
+  vim.env.TERM = 'xterm-256color'
+  vim.env.TERM_PROGRAM = nil
+  vim.env.KITTY_WINDOW_ID = nil
+  vim.env.GHOSTTY_RESOURCES_DIR = nil
+end
+
+clear_term_env()
+eq(protocol.wrap '\27_Gq=2\27\\', '\27_Gq=2\27\\', 'no wrap outside tmux')
+eq(protocol.supported(), false, 'unsupported without kitty/ghostty')
+vim.env.GHOSTTY_RESOURCES_DIR = '/usr/share/ghostty'
+eq(protocol.supported(), true, 'ghostty env is supported outside tmux')
+vim.env.GHOSTTY_RESOURCES_DIR = nil
+vim.env.KITTY_WINDOW_ID = '1'
+eq(protocol.supported(), true, 'kitty env is supported outside tmux')
+
+clear_term_env()
+vim.env.TMUX = '/tmp/tmux-1000/default,1,0'
+eq(protocol.wrap '\27_Gq=2\27\\', '\27Ptmux;\27\27_Gq=2\27\27\\\27\\', 'tmux wrap doubles ESC and adds DCS')
+local sent
+local ui_send = vim.api.nvim_ui_send
+vim.api.nvim_ui_send = function(msg)
+  sent = msg
+end
+protocol.request { a = 'd', d = 'I', i = 1, q = 2 }
+eq(sent:sub(1, 11), '\27Ptmux;\27\27_G', 'request wraps APC inside tmux')
+eq(sent:sub(-5), '\27\27\\\27\\', 'request ST is doubled then closed')
+vim.api.nvim_ui_send = ui_send
+
+local replies = {}
+protocol.tmux = function(args)
+  return replies[table.concat(args, ' ')]
+end
+
+protocol.invalidate()
+eq(protocol.supported(), false, 'tmux without outer terminal is unsupported')
+
+replies['tmux display-message -p #{client_termname}'] = 'xterm-256color'
+protocol.invalidate()
+eq(protocol.supported(), false, 'tmux xterm client is unsupported')
+
+replies['tmux display-message -p #{client_termname}'] = 'xterm-kitty'
+protocol.invalidate()
+eq(protocol.supported(), false, 'tmux kitty without passthrough is unsupported')
+
+replies['tmux set -p allow-passthrough all'] = ''
+replies['tmux show -Apv allow-passthrough'] = 'off'
+protocol.invalidate()
+eq(protocol.supported(), false, 'tmux passthrough off is unsupported')
+
+replies['tmux show -Apv allow-passthrough'] = 'all'
+protocol.invalidate()
+eq(protocol.supported(), true, 'tmux kitty with passthrough is supported')
+
+replies['tmux display-message -p #{client_termname}'] = 'xterm-ghostty'
+protocol.invalidate()
+eq(protocol.supported(), true, 'tmux ghostty client_termname is supported')
+
+vim.env.GHOSTTY_RESOURCES_DIR = '/usr/share/ghostty'
+replies['tmux display-message -p #{client_termname}'] = nil
+protocol.invalidate()
+eq(protocol.supported(), true, 'tmux inherited ghostty env is supported')
+
+available = false
+replies['tmux display-message -p #{client_cell_width}'] = '11'
+replies['tmux display-message -p #{client_cell_height}'] = '22'
+protocol.invalidate()
+eq(protocol.size().cell_width, 11, 'tmux client_cell_width when ioctl has no pixels')
+eq(protocol.size().cell_height, 22, 'tmux client_cell_height when ioctl has no pixels')
+
+replies['tmux display-message -p #{client_cell_width}'] = nil
+replies['tmux display-message -p #{client_cell_height}'] = nil
+protocol.invalidate()
+eq(protocol.size().cell_height, 18, 'tmux without cell metrics uses temporary fallback')
+
+available = true
+pixels.xpixel = 214 * 14
+pixels.ypixel = 84 * 32
+replies['tmux display-message -p #{client_cell_width}'] = '11'
+replies['tmux display-message -p #{client_cell_height}'] = '22'
+protocol.invalidate()
+eq(protocol.size().cell_height, 32, 'ioctl pixels win over tmux client_cell_*')
+
+restore_env()
+protocol.tmux = real_tmux
+protocol.invalidate()
 package.loaded.ffi = ffi
 vim.uv.fs_open = fs_open
 

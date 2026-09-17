@@ -1,14 +1,14 @@
 ---
 feature: plugin
 created: 2026-09-11
-updated: 2026-09-13
+updated: 2026-09-16
 ---
 
 # Plugin
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-13 |
+| 2026-09-11 | 2026-09-16 |
 
 ## Purpose
 
@@ -88,6 +88,8 @@ defaults.
 `:checkhealth super-markdown` SHALL report Neovim version, Tree-sitter
 `markdown` and `markdown_inline` parsers, Kitty graphics support,
 `rsvg-convert`, optional `magick`, Node, and the Mermaid and math helpers.
+When Neovim is inside tmux, it SHALL also report tmux version, whether
+passthrough is enabled, and the outer terminal.
 
 ## Change history
 
@@ -98,3 +100,4 @@ defaults.
 | 2026-09-13 | media.max_width default 0.75 |
 | 2026-09-13 | media.max_height default 1.0 of window height |
 | 2026-09-13 | images cap to max size; mermaid still renders at max_width |
+| 2026-09-16 | Health reports tmux version, passthrough, and outer terminal |

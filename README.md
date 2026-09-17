@@ -21,9 +21,11 @@ Inline GitHub-Flavored Markdown rendering for Neovim.
 - Node.js, then `npm install` in `scripts/` for Mermaid (and math)
 - ImageMagick `magick` only for JPEG/GIF/WebP
 
-### A note about tmux, Zellij, herdr, etc.
+### tmux
 
-If you use a multiplexer, it must also support Kitty graphics.
+Graphics work in tmux 3.3+ when the outer terminal is Ghostty or Kitty.
+The plugin enables pane-local `allow-passthrough all`. Nested tmux,
+Zellij, GNU screen, and WezTerm are not supported.
 
 ## Features
 

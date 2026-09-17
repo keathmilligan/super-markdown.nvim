@@ -1,14 +1,14 @@
 ---
 feature: media
 created: 2026-09-11
-updated: 2026-09-15
+updated: 2026-09-16
 ---
 
 # Media
 
 | Created | Updated |
 | --- | --- |
-| 2026-09-11 | 2026-09-15 |
+| 2026-09-11 | 2026-09-16 |
 
 ## Purpose
 
@@ -22,6 +22,18 @@ buffers via the Kitty graphics protocol.
 Images SHALL use the Kitty graphics protocol (Ghostty/Kitty) with unicode
 placeholders. The protocol payload SHALL be PNG (`f=100`). SVG SHALL be
 rasterized with `rsvg-convert` only. There is no Chromium or `mmdc` fallback.
+
+Graphics SHALL display inside tmux 3.3 or later when the outer terminal is
+Ghostty or Kitty, using the same unicode-placeholder protocol. The plugin
+SHALL enable pane-local tmux `allow-passthrough all` and SHALL wrap graphics
+APC in tmux DCS passthrough. Graphics SHALL NOT run when the outer terminal
+is not Ghostty or Kitty, when tmux passthrough cannot be enabled, or in
+Zellij, GNU screen, nested tmux, or WezTerm.
+
+Cell pixel metrics SHALL use the tty ioctl when it reports pixel sizes.
+Inside tmux, if ioctl omits pixel sizes, metrics SHALL use the tmux
+client's cell size. If both are unavailable, a temporary 9×18 cell
+fallback SHALL be used and SHALL NOT be pinned for the session.
 
 Converted media SHALL be cached under `stdpath('cache')` by kind, theme,
 and content identity. Images, Mermaid, and math use a content hash.
@@ -109,3 +121,4 @@ chrome.
 | 2026-09-13 | media.max_height default window height so max_width is reachable |
 | 2026-09-13 | images cap to max_width/max_height; do not upscale |
 | 2026-09-15 | Heading virtual-line hosts are structural and cursor-independent |
+| 2026-09-16 | Graphics work in tmux 3.3+ with Ghostty/Kitty via passthrough |

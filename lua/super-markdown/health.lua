@@ -26,10 +26,32 @@ function M.check()
   parser 'markdown'
   parser 'markdown_inline'
 
-  if protocol.supported() then
-    vim.health.ok 'Kitty graphics protocol (Ghostty/Kitty)'
+  local graphics = protocol.supported()
+  local outer = protocol.outer_terminal()
+  if graphics then
+    if protocol.in_tmux() then
+      vim.health.ok('Kitty graphics protocol (' .. outer .. ' via tmux)')
+    else
+      vim.health.ok 'Kitty graphics protocol (Ghostty/Kitty)'
+    end
   else
     vim.health.warn 'Kitty graphics protocol not detected; images and diagrams will not display'
+  end
+
+  if protocol.in_tmux() then
+    local ver = protocol.tmux { 'tmux', '-V' }
+    if ver then
+      vim.health.ok(ver)
+    else
+      vim.health.warn 'tmux detected but `tmux -V` failed'
+    end
+    if graphics then
+      vim.health.ok 'tmux allow-passthrough all'
+    elseif outer then
+      vim.health.warn 'tmux passthrough unavailable (need tmux 3.3+; plugin sets allow-passthrough all on the pane)'
+    else
+      vim.health.warn 'tmux outer terminal is not Kitty or Ghostty'
+    end
   end
 
   if convert.has 'rsvg-convert' then

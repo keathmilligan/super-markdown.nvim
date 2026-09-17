@@ -20,18 +20,86 @@ setmetatable(positions, {
 
 local cell ---@type { width: number, height: number, cols: number, rows: number, cell_width: number, cell_height: number }|nil
 local winsize_type
+local passthrough ---@type boolean|nil
+
+function M.invalidate()
+  cell = nil
+  passthrough = nil
+end
+
+---@return boolean
+function M.in_tmux()
+  local value = vim.env.TMUX
+  return value ~= nil and value ~= ''
+end
+
+---@param args string[]
+---@return string|nil
+function M.tmux(args)
+  local ok, out = pcall(vim.fn.system, args)
+  if not ok or vim.v.shell_error ~= 0 then
+    return nil
+  end
+  return vim.trim(out)
+end
+
+local function name_has(s, needle)
+  return s:find(needle, 1, true) ~= nil
+end
+
+---@return 'ghostty'|'kitty'|nil
+function M.outer_terminal()
+  local program = (vim.env.TERM_PROGRAM or ''):lower()
+  local term = (vim.env.TERM or ''):lower()
+  if vim.env.GHOSTTY_RESOURCES_DIR or name_has(program, 'ghostty') or name_has(term, 'ghostty') then
+    return 'ghostty'
+  end
+  if vim.env.KITTY_WINDOW_ID or name_has(program, 'kitty') or name_has(term, 'kitty') then
+    return 'kitty'
+  end
+  if not M.in_tmux() then
+    return
+  end
+  local client = (M.tmux { 'tmux', 'display-message', '-p', '#{client_termname}' } or ''):lower()
+  if name_has(client, 'ghostty') then
+    return 'ghostty'
+  end
+  if name_has(client, 'kitty') then
+    return 'kitty'
+  end
+end
+
+local function ensure_passthrough()
+  if passthrough ~= nil then
+    return passthrough
+  end
+  passthrough = false
+  if M.tmux { 'tmux', 'set', '-p', 'allow-passthrough', 'all' } == nil then
+    return false
+  end
+  local val = M.tmux { 'tmux', 'show', '-Apv', 'allow-passthrough' }
+  passthrough = val == 'on' or val == 'all'
+  return passthrough
+end
 
 ---@return boolean
 function M.supported()
-  local program = (vim.env.TERM_PROGRAM or ''):lower()
-  local term = (vim.env.TERM or ''):lower()
-  if vim.env.GHOSTTY_RESOURCES_DIR or program:find('ghostty', 1, true) or term:find('ghostty', 1, true) then
+  if not M.outer_terminal() then
+    return false
+  end
+  if not M.in_tmux() then
     return true
   end
-  if vim.env.KITTY_WINDOW_ID or program:find('kitty', 1, true) or term:find('kitty', 1, true) then
-    return true
+  return ensure_passthrough()
+end
+
+---@param msg string
+---@return string
+function M.wrap(msg)
+  if not M.in_tmux() then
+    return msg
   end
-  return false
+  return '\27Ptmux;' .. msg:gsub('\27', '\27\27') .. '\27\\'
 end
 
 ---@return { width: number, height: number, cols: number, rows: number, cell_width: number, cell_height: number }
@@ -92,6 +160,21 @@ function M.size()
       }
     end
   end)
+  if not cell and M.in_tmux() then
+    local cw = tonumber(M.tmux { 'tmux', 'display-message', '-p', '#{client_cell_width}' })
+    local ch = tonumber(M.tmux { 'tmux', 'display-message', '-p', '#{client_cell_height}' })
+    if cw and ch and cw >= 1 and ch >= 1 then
+      local cols, rows = vim.o.columns, vim.o.lines
+      cell = {
+        width = cols * cw,
+        height = rows * ch,
+        cols = cols,
+        rows = rows,
+        cell_width = math.floor(cw),
+        cell_height = math.floor(ch),
+      }
+    end
+  end
   -- A failed query must not pin the guessed dimensions for the whole session.
   return cell or fallback
 end
@@ -115,7 +198,7 @@ function M.request(opts)
   if opts.data then
     msg = msg .. ';' .. opts.data
   end
-  msg = msg .. '\27\\'
+  msg = M.wrap(msg .. '\27\\')
   if vim.api.nvim_ui_send then
     vim.api.nvim_ui_send(msg)
   else
